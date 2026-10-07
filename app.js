@@ -36,10 +36,10 @@ function openDb(){
  })
 }
 async function seedIfNeeded(){
- if((await reqP(os(S_COURSES).count()))===0) await reqP(os(S_COURSES,"readwrite").put(seedCourse));
- if((await reqP(os(S_VOCAB).count()))===0){
-   var tx=db.transaction(S_VOCAB,"readwrite"),s=tx.objectStore(S_VOCAB);seed.forEach(v=>s.put(v));
-   await new Promise((res,rej)=>{tx.oncomplete=res;tx.onerror=()=>rej(tx.error)})
+ // Ab Version 3.3 werden keine Testvokabeln automatisch neu angelegt.
+ // Die Vokabelbestände kommen ausschließlich per JSON-Import.
+ if((await reqP(os(S_COURSES).count()))===0 && (await reqP(os(S_VOCAB).count()))>0){
+   await reqP(os(S_COURSES,"readwrite").put(seedCourse));
  }
 }
 async function reload(){
@@ -114,6 +114,28 @@ function partGroup(unitId){
 }
 function unitLabel(x){return({"unite-1":"Unité 1","unite-2":"Unité 2","unite-3":"Unité 3","module-a":"Module A","module-b":"Module B","module-c":"Module C","module-d":"Module D","alle":"Alle"})[x]||x}
 function partLabel(x){return({"alle":"Alle","auftakt":"Auftaktseite","vocabulaire-thematique":"Vocabulaire thématique","volet-1":"Volet 1","volet-2":"Volet 2","sonstiges":"Sonstiges"})[x]||x}
+
+function isKnownFrenchEntry(v){
+ var u=String((v&&v.unitId)||"").toLowerCase();
+ return /^(unite-[123]|module-[a-d])/.test(u);
+}
+function belongsToCourse(v,courseId){
+ if(courseId==="alle") return true;
+ if(courseId==="franzoesisch") return v.courseId==="franzoesisch" || isKnownFrenchEntry(v);
+ return v.courseId===courseId;
+}
+function learningCourses(){
+ var result=[];
+ if(vocab.some(isKnownFrenchEntry) || vocab.some(function(v){return v.courseId==="franzoesisch"})){
+   result.push({id:"franzoesisch",name:"Französisch",learningLocale:"fr-FR",nativeLocale:"de-DE"});
+ }
+ // spätere weitere Sprachen/Kurse nur dann ergänzen, wenn sie echte, nicht-französische Einträge haben
+ courses.forEach(function(c){
+   if(!c || !c.id || c.id==="franzoesisch") return;
+   if(vocab.some(function(v){return v.courseId===c.id && !isKnownFrenchEntry(v)})) result.push(c);
+ });
+ return result;
+}
 function fillSelect(sel,items,allLabel){
  var old=sel.value;sel.innerHTML="";
  if(allLabel!==null){var o=document.createElement("option");o.value="alle";o.textContent=allLabel||"Alle";sel.appendChild(o)}
@@ -122,22 +144,39 @@ function fillSelect(sel,items,allLabel){
 }
 function courseName(id){var c=courses.find(x=>x.id===id);return c?c.name:id}
 function populateCourseSelects(){
- ["courseSelect","examCourse","overviewCourse","vocabCourse"].forEach(function(id){
-   var includeAll=(id==="overviewCourse"||id==="vocabCourse");
-   fillSelect($(id),courses.map(function(c){return{value:c.id,label:c.name}}),includeAll?"Alle":null);
-   if(!includeAll && courses.length) $(id).value=courses[0].id;
- })
+ var learn=learningCourses();
+
+ // Lernen + Klassenarbeit: NUR echte Kurse, niemals Unités oder Module
+ [["courseSelect",false],["examCourse",false]].forEach(function(pair){
+   var sel=$(pair[0]);
+   fillSelect(sel,learn.map(function(c){return{value:c.id,label:c.name}}),null);
+   if(learn.some(function(c){return c.id==="franzoesisch"})) sel.value="franzoesisch";
+   else if(learn.length) sel.value=learn[0].id;
+ });
+
+ // Übersicht + Vokabeln: "Alle" plus echte Kurse
+ ["overviewCourse","vocabCourse"].forEach(function(id){
+   var sel=$(id);
+   fillSelect(sel,learn.map(function(c){return{value:c.id,label:c.name}}),"Alle");
+ });
 }
 function unitsForCourse(courseId){
  var order={"unite-1":1,"unite-2":2,"unite-3":3,"module-a":10,"module-b":11,"module-c":12,"module-d":13};
- return [...new Set(vocab.filter(v=>courseId==="alle"||v.courseId===courseId).map(v=>unitGroup(v.unitId)))].sort(function(a,b){return (order[a]||99)-(order[b]||99)||a.localeCompare(b)})
+ return [...new Set(
+   vocab.filter(function(v){return belongsToCourse(v,courseId)})
+        .map(function(v){return unitGroup(v.unitId)})
+ )].sort(function(a,b){return (order[a]||99)-(order[b]||99)||a.localeCompare(b)});
 }
 function populateUnit(sel,courseId,includeAll){
  fillSelect(sel,unitsForCourse(courseId).map(x=>({value:x,label:unitLabel(x)})),includeAll?"Alle":null)
 }
 function partsFor(courseId,unit){
  if(/^module-[a-d]$/.test(unit)) return [];
- return [...new Set(vocab.filter(v=>(courseId==="alle"||v.courseId===courseId)&&(unit==="alle"||unitGroup(v.unitId)===unit)).map(v=>partGroup(v.unitId)))].filter(x=>x!=="alle").sort()
+ return [...new Set(
+   vocab.filter(function(v){
+     return belongsToCourse(v,courseId) && (unit==="alle"||unitGroup(v.unitId)===unit);
+   }).map(function(v){return partGroup(v.unitId)})
+ )].filter(function(x){return x!=="alle"}).sort();
 }
 function populatePart(sel,courseId,unit,includeAll){
  var parts=partsFor(courseId,unit);
@@ -151,7 +190,11 @@ function populatePart(sel,courseId,unit,includeAll){
  }
 }
 function filtered(courseId,unit,part){
- return vocab.filter(v=>(courseId==="alle"||v.courseId===courseId)&&(unit==="alle"||unitGroup(v.unitId)===unit)&&(part==="alle"||partGroup(v.unitId)===part))
+ return vocab.filter(function(v){
+   return belongsToCourse(v,courseId) &&
+          (unit==="alle"||unitGroup(v.unitId)===unit) &&
+          (part==="alle"||partGroup(v.unitId)===part);
+ });
 }
 async function weakScore(v,dir){
  var p=await gp(v.id), lvl=dir==="FR_DE"?p.frDe:dir==="DE_FR"?p.deFr:Math.min(p.deFr,p.frDe);
@@ -299,8 +342,21 @@ async function exportCurrentCourse(){
  downloadJson({schemaVersion:3,course:c,entries:entries,progress:progress},"vokabeltrainer-"+cid+".json")
 }
 async function resetAll(){
- if(!confirm("Alle lokalen Daten löschen und nur die drei Testvokabeln wiederherstellen?"))return;
- for(var s of [S_VOCAB,S_PROGRESS,S_COURSES,S_EXAMS])await reqP(os(s,"readwrite").clear());await seedIfNeeded();await reload();populateAllSelectors();await startSession()
+ if(!confirm("Wirklich alle Vokabeln, Lernstände, Kurse und Klassenarbeiten auf diesem Gerät löschen?")) return;
+ for(var s of [S_VOCAB,S_PROGRESS,S_COURSES,S_EXAMS]){
+   await reqP(os(s,"readwrite").clear());
+ }
+ vocab=[];
+ courses=[];
+ session={active:false,pool:[],firstQueue:[],seen:{},current:null,currentDirection:"DE_FR",attempts:0,correct:0,testResults:[],lastId:null};
+ populateAllSelectors();
+ $("scopeInfo").textContent="Alle lokalen Testdaten und Vokabeln wurden gelöscht. Unter Daten kannst du eine JSON-Datei neu importieren.";
+ $("prompt").textContent="Keine Vokabeln vorhanden";
+ $("answer").value="";
+ $("sessionCoverage").textContent="0 / 0 einmal gesehen";
+ $("currentLevel").textContent="Lernstufe 0";
+ $("sessionScore").textContent="Session: 0 richtig / 0";
+ $("importResult").textContent="Alle lokalen Daten wurden gelöscht.";
 }
 async function saveExam(){
  var c=$("examCourse").value,u=$("examUnit").value,p=$("examPart").value,date=$("examDate").value;if(!date)return alert("Bitte Datum wählen.");
@@ -317,11 +373,30 @@ async function renderExamSummary(){
 }
 function populateAllSelectors(){
  populateCourseSelects();
- ["courseSelect","examCourse"].forEach(id=>{if(!$(id).value&&courses[0])$(id).value=courses[0].id});
- populateUnit($("courseSelect"),$("courseSelect").value,false);populatePart($("partSelect"),$("courseSelect").value,$("unitSelect").value,true);
- populateUnit($("examUnit"),$("examCourse").value,false);populatePart($("examPart"),$("examCourse").value,$("examUnit").value,true);
- populateUnit($("overviewUnit"),$("overviewCourse").value,true);populatePart($("overviewPart"),$("overviewCourse").value,$("overviewUnit").value,true);
- populateUnit($("vocabUnit"),$("vocabCourse").value,true);populatePart($("vocabPart"),$("vocabCourse").value,$("vocabUnit").value,true);
+
+ var lc=learningCourses();
+ if(lc.length){
+   if(lc.some(function(c){return c.id==="franzoesisch"})){
+     $("courseSelect").value="franzoesisch";
+     $("examCourse").value="franzoesisch";
+   }
+
+   populateUnit($("courseSelect"),$("courseSelect").value,false);
+   populatePart($("partSelect"),$("courseSelect").value,$("unitSelect").value,true);
+
+   populateUnit($("examUnit"),$("examCourse").value,false);
+   populatePart($("examPart"),$("examCourse").value,$("examUnit").value,true);
+ }else{
+   $("unitSelect").innerHTML="";
+   $("partSelect").innerHTML="";
+   $("examUnit").innerHTML="";
+   $("examPart").innerHTML="";
+ }
+
+ populateUnit($("overviewUnit"),$("overviewCourse").value,true);
+ populatePart($("overviewPart"),$("overviewCourse").value,$("overviewUnit").value,true);
+ populateUnit($("vocabUnit"),$("vocabCourse").value,true);
+ populatePart($("vocabPart"),$("vocabCourse").value,$("vocabUnit").value,true);
 }
 function bindCascade(courseId,unitId,partId,includeAll){
  $(courseId).addEventListener("change",()=>{populateUnit($(unitId),$(courseId).value,includeAll);populatePart($(partId),$(courseId).value,$(unitId).value,true);if(courseId==="examCourse")renderExamSummary();if(courseId==="overviewCourse")renderOverview();if(courseId==="vocabCourse")renderVocab()});
@@ -339,7 +414,7 @@ $("jsonFile").onchange=async e=>{var f=e.target.files&&e.target.files[0];if(!f)r
  try{
   db=await openDb();await seedIfNeeded();await reload();populateAllSelectors();
   bindCascade("courseSelect","unitSelect","partSelect",false);bindCascade("examCourse","examUnit","examPart",false);bindCascade("overviewCourse","overviewUnit","overviewPart",true);bindCascade("vocabCourse","vocabUnit","vocabPart",true);
-  $("appStatus").textContent="✓ Version 3.2 läuft. Kurs-/Unité-Struktur repariert. IndexedDB ist verfügbar.";
+  $("appStatus").textContent="✓ Version 3.3 läuft. Lernhierarchie Kurs → Unité/Modul → Teilbereich ist aktiv. IndexedDB ist verfügbar.";
   await startSession()
  }catch(err){$("appStatus").textContent="Startfehler: "+err.message;$("appStatus").style.background="#fdeaea"}
 })();

@@ -1,6 +1,23 @@
-Vokabeltrainer 3.2
-- Repariert falsche Kurseinträge wie Module A-D oder Unité 1-3.
-- Ordnet bekannte unitId-Werte automatisch dem Kurs Französisch zu.
-- Kurs zeigt Französisch; Unité / Modul zeigt Unité 1-3 und Module A-D.
-- Bereits importierte Vokabeln bleiben erhalten.
-- Nach Deployment mit ?v=32 öffnen.
+Vokabeltrainer 3.3 – für Johanna
+
+Wesentliche Korrektur beim Lernen:
+1. Kurs: Französisch
+2. Unité / Modul: Unité 1, Unité 2, Unité 3, Module A-D
+3. Teilbereich: Alle / Auftaktseite / Vocabulaire thématique / Volet 1 / Volet 2
+   Bei Modulen: gesamtes Modul
+
+Die Lernen-Auswahl wird jetzt direkt aus den Vokabeldaten abgeleitet.
+Unité/Module können dadurch nicht mehr im Feld 'Kurs' erscheinen.
+
+'Testdaten zurücksetzen':
+- löscht jetzt ALLE Vokabeln
+- löscht Lernstände
+- löscht Kurse
+- löscht Klassenarbeiten
+- legt keine drei Testvokabeln mehr neu an
+
+Nach dem Update:
+https://vonwesternhagen.github.io/vokabeltrainer/?v=33
+
+Oben muss stehen:
+✓ Version 3.3 läuft. Lernhierarchie Kurs → Unité/Modul → Teilbereich ist aktiv. IndexedDB ist verfügbar.
