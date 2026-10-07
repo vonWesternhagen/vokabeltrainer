@@ -1,31 +1,20 @@
-Vokabeltrainer Prototyp 3 – GitHub Pages Update
+Vokabeltrainer Prototyp 3.1 – Korrektur der Bereichsauswahl
 
-NEU:
-- Auswahl von Kurs, Unité/Modul und Teilbereich (Auftakt, Vocabulaire thématique, Volet 1, Volet 2).
-- Reihenfolge: vorwärts, rückwärts, zufällig, schlechteste zuerst.
-- In jeder Session wird jede Vokabel des gewählten Bereichs mindestens einmal abgefragt.
-- Danach standardmäßig adaptiver Schwerpunkt auf den schwächsten Vokabeln.
-- Richtungen: DE→Fremdsprache, Fremdsprache→DE, gemischt.
-- Lernmodus und Testmodus.
-- getrennte Lernstufen pro Richtung + einfache Wiederholungsfälligkeit.
-- Klassenarbeitstermin mit Stoffbereich und grober Tagesempfehlung.
-- Übersicht/Statistik nach Kurs/Unité/Teilbereich.
-- Vokabelbestand durchsuchen und einzelne Einträge bearbeiten.
-- additive JSON-Imports; zweite Sprache über eigene course.id möglich.
-- komplettes Backup oder einzelner Kurs exportierbar.
-- NAS bleibt Dateiaustausch/Backup über exportierte JSON-Dateien.
-- Apple Pencil/Scribble und iPad-Diktat bleiben Eingabewege.
+KORRIGIERT:
+- JSON-Datei vokabeltrainer_franz_buchseiten_163-185.json ist mit der App abgeglichen.
+- Kurs zeigt nur echte Kurse (z. B. Französisch), nicht Unités oder Module.
+- Unité / Modul zeigt danach: Unité 1, Unité 2, Unité 3, Module A-D.
+- Teilbereich zeigt bei Unités: Alle, Auftaktseite, Vocabulaire thématique, Volet 1, Volet 2.
+- Bei Module A-D ist Teilbereich automatisch "gesamtes Modul".
+- Selbstheilung für bereits importierte lokale Testdaten, falls courseId versehentlich wie eine Unité/Modul-ID aussieht.
+- Reihenfolge der Bereiche ist logisch statt alphabetisch.
 
-UPDATE AUF GITHUB:
-1. Diese fünf Dateien hochladen/ersetzen:
-   index.html
-   styles.css
-   app.js
-   manifest.webmanifest
-   sw.js
-2. Commit.
-3. GitHub Pages Deployment abwarten.
-4. Auf dem iPad URL mit ?v=3 öffnen.
-5. Oben muss stehen: "✓ Version 3 läuft. IndexedDB ist verfügbar."
+JSON-SCHEMA:
+course.id = "franzoesisch"
+entry.unitId = z.B. "unite-2-volet-1" oder "module-a"
 
-Danach die große Vokabel-JSON erneut importieren. Bestehende Lernstände der drei Testvokabeln bleiben bei gleicher ID erhalten.
+GitHub Pages:
+Die 5 Dateien index.html, styles.css, app.js, manifest.webmanifest und sw.js hochladen/ersetzen.
+Danach URL mit ?v=31 öffnen.
+Oben muss stehen:
+✓ Version 3.1 läuft. JSON-Struktur geprüft. IndexedDB ist verfügbar.
