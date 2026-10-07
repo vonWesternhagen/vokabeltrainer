@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#ffffff">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Vokabeltrainer">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="styles.css">
+  <title>Vokabeltrainer – Test</title>
+</head>
+<body>
+<main>
+  <h1>Vokabeltrainer – Test</h1>
+  <p class="sub">Test für Apple Pencil/Scribble, Antwortprüfung, Lernstand, Sprache und JSON-Import.</p>
+
+  <div id="appStatus" class="status">JavaScript startet …</div>
+
+  <section class="card">
+    <div class="top">
+      <span class="badge" id="progress">1 / 3</span>
+      <span class="badge" id="level">Lernstufe 0</span>
+    </div>
+
+    <div class="label" id="direction">Deutsch → Französisch</div>
+    <div class="prompt" id="prompt">der Plan / das Vorhaben / das Projekt</div>
+
+    <label for="answer"><strong>Antwort</strong></label>
+    <textarea id="answer" lang="fr" autocomplete="off" autocapitalize="none"
+      spellcheck="false" placeholder="Mit Apple Pencil schreiben, tippen oder diktieren …"></textarea>
+
+    <div class="buttons">
+      <button type="button" id="check">Prüfen</button>
+      <button type="button" id="mic" class="secondary">🎤 Sprechen</button>
+      <button type="button" id="next" class="secondary">Weiter</button>
+      <button type="button" id="switch" class="secondary">FR ↔ DE wechseln</button>
+    </div>
+
+    <div id="feedback" class="feedback">Noch keine Antwort geprüft.</div>
+    <p class="small" id="speechInfo">Direkte Spracherkennung wird beim Laden geprüft.</p>
+  </section>
+
+  <section class="card">
+    <h2>Lernstände</h2>
+    <div id="levels"></div>
+  </section>
+
+  <section class="card">
+    <h2>Vokabeln importieren / sichern</h2>
+    <p class="small">
+      JSON-Import ist additiv: neue Vokabeln werden ergänzt. Bei gleicher ID wird der Text aktualisiert,
+      der vorhandene Lernstand bleibt erhalten.
+    </p>
+    <div class="buttons">
+      <label class="fileButton" for="jsonFile">JSON importieren</label>
+      <input id="jsonFile" type="file" accept=".json,application/json">
+      <button type="button" id="export" class="secondary">Backup exportieren</button>
+      <button type="button" id="reset" class="secondary">Testdaten zurücksetzen</button>
+    </div>
+    <div id="importResult" class="small"></div>
+  </section>
+</main>
+<script src="app.js"></script>
+</body>
+</html>
