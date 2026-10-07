@@ -44,40 +44,52 @@ async function seedIfNeeded(){
 }
 async function reload(){
  vocab=await reqP(os(S_VOCAB).getAll());
- courses=await reqP(os(S_COURSES).getAll());
+ var storedCourses=await reqP(os(S_COURSES).getAll());
 
- // Selbstheilung für ältere/importierte Teststände:
- // unit-/module-artige courseIds gehören beim vorliegenden Französischbestand zum Kurs "franzoesisch".
- var changed=false;
- var tx=db.transaction(S_VOCAB,"readwrite"), vs=tx.objectStore(S_VOCAB);
+ function looksLikeSectionId(value){
+   var s=String(value||"").trim().toLowerCase().replace(/\s+/g,"-");
+   return /^unite-?\d/.test(s) || /^unité-?\d/.test(s) ||
+          /^module-?[a-d]$/.test(s) || /^volet-?\d/.test(s) ||
+          /auftakt|vocabulaire|thematique|thématique/.test(s);
+ }
+
+ var vtx=db.transaction(S_VOCAB,"readwrite"), vs=vtx.objectStore(S_VOCAB);
  vocab.forEach(function(v){
-   if(!v.courseId || /^unite-\d/.test(v.courseId) || /^module-[a-d]$/.test(v.courseId)){
+   var knownFrenchSection=/^(unite-[123]|module-[a-d])/.test(String(v.unitId||"").toLowerCase());
+   if(knownFrenchSection && v.courseId!=="franzoesisch"){
      v.courseId="franzoesisch";
-     vs.put(v); changed=true;
+     vs.put(v);
    }
  });
- if(changed){
-   await new Promise(function(resolve,reject){tx.oncomplete=resolve;tx.onerror=function(){reject(tx.error)}});
-   vocab=await reqP(os(S_VOCAB).getAll());
- }
+ await new Promise(function(resolve,reject){
+   vtx.oncomplete=resolve;
+   vtx.onerror=function(){reject(vtx.error)};
+ });
+ vocab=await reqP(os(S_VOCAB).getAll());
 
- // Kursliste aus real verwendeten courseIds absichern. Falsche Alt-Einträge (Unité/Module) nicht anzeigen.
- var used=[...new Set(vocab.map(function(v){return v.courseId}).filter(Boolean))];
- var validCourses=courses.filter(function(c){return c && c.id && !/^unite-\d/.test(c.id) && !/^module-[a-d]$/.test(c.id)});
- if(used.indexOf("franzoesisch")>=0 && !validCourses.some(function(c){return c.id==="franzoesisch"})){
-   var fr={id:"franzoesisch",name:"Französisch",learningLocale:"fr-FR",nativeLocale:"de-DE"};
-   await reqP(os(S_COURSES,"readwrite").put(fr)); validCourses.push(fr);
- }
- // Für unbekannte, aber tatsächlich verwendete courseIds einen Kurs erzeugen.
- for(var i=0;i<used.length;i++){
-   var cid=used[i];
-   if(!validCourses.some(function(c){return c.id===cid})){
-     var nc={id:cid,name:cid,learningLocale:"fr-FR",nativeLocale:"de-DE"};
-     await reqP(os(S_COURSES,"readwrite").put(nc)); validCourses.push(nc);
+ var ctx=db.transaction(S_COURSES,"readwrite"), cs=ctx.objectStore(S_COURSES);
+ storedCourses.forEach(function(c){
+   if(!c || !c.id || looksLikeSectionId(c.id) || looksLikeSectionId(c.name)){
+     if(c && c.id) cs.delete(c.id);
    }
- }
- courses=validCourses;
- vocab.sort(function(a,b){return (a.unitId||"").localeCompare(b.unitId||"")||a.id.localeCompare(b.id)});
+ });
+ var fr={id:"franzoesisch",name:"Französisch",learningLocale:"fr-FR",nativeLocale:"de-DE"};
+ cs.put(fr);
+ await new Promise(function(resolve,reject){
+   ctx.oncomplete=resolve;
+   ctx.onerror=function(){reject(ctx.error)};
+ });
+
+ var used=[...new Set(vocab.map(function(v){return v.courseId}).filter(Boolean))];
+ courses=await reqP(os(S_COURSES).getAll());
+ courses=courses.filter(function(c){
+   return c && used.indexOf(c.id)>=0 && !looksLikeSectionId(c.id) && !looksLikeSectionId(c.name);
+ });
+ if(used.indexOf("franzoesisch")>=0 && !courses.some(function(c){return c.id==="franzoesisch"})) courses.push(fr);
+
+ vocab.sort(function(a,b){
+   return (a.unitId||"").localeCompare(b.unitId||"") || a.id.localeCompare(b.id);
+ });
 }
 function pDefault(id){return{id:id,deFr:0,frDe:0,attempts:0,correct:0,almost:0,wrong:0,attemptsDEFR:0,attemptsFRDE:0,lastPracticedAt:null,dueDEFR:null,dueFRDE:null}}
 async function gp(id){var p=await reqP(os(S_PROGRESS).get(id));return Object.assign(pDefault(id),p||{})}
@@ -110,7 +122,11 @@ function fillSelect(sel,items,allLabel){
 }
 function courseName(id){var c=courses.find(x=>x.id===id);return c?c.name:id}
 function populateCourseSelects(){
- ["courseSelect","examCourse","overviewCourse","vocabCourse"].forEach(id=>fillSelect($(id),courses.map(c=>({value:c.id,label:c.name})),id==="overviewCourse"||id==="vocabCourse"?"Alle":null))
+ ["courseSelect","examCourse","overviewCourse","vocabCourse"].forEach(function(id){
+   var includeAll=(id==="overviewCourse"||id==="vocabCourse");
+   fillSelect($(id),courses.map(function(c){return{value:c.id,label:c.name}}),includeAll?"Alle":null);
+   if(!includeAll && courses.length) $(id).value=courses[0].id;
+ })
 }
 function unitsForCourse(courseId){
  var order={"unite-1":1,"unite-2":2,"unite-3":3,"module-a":10,"module-b":11,"module-c":12,"module-d":13};
@@ -323,7 +339,7 @@ $("jsonFile").onchange=async e=>{var f=e.target.files&&e.target.files[0];if(!f)r
  try{
   db=await openDb();await seedIfNeeded();await reload();populateAllSelectors();
   bindCascade("courseSelect","unitSelect","partSelect",false);bindCascade("examCourse","examUnit","examPart",false);bindCascade("overviewCourse","overviewUnit","overviewPart",true);bindCascade("vocabCourse","vocabUnit","vocabPart",true);
-  $("appStatus").textContent="✓ Version 3.1 läuft. JSON-Struktur geprüft. IndexedDB ist verfügbar.";
+  $("appStatus").textContent="✓ Version 3.2 läuft. Kurs-/Unité-Struktur repariert. IndexedDB ist verfügbar.";
   await startSession()
  }catch(err){$("appStatus").textContent="Startfehler: "+err.message;$("appStatus").style.background="#fdeaea"}
 })();
