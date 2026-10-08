@@ -1,7 +1,7 @@
 (function(){
 "use strict";
 
-var APP_VERSION="4.0";
+var APP_VERSION="4.1";
 var DB_NAME="VokabeltrainerTest";
 var DB_VERSION=2;
 var S_VOCAB="vocab",S_PROGRESS="progress",S_COURSES="courses",S_EXAMS="exams";
@@ -13,7 +13,7 @@ var LEGACY_SEEDS={"le-projet":"le projet","le-metier":"le métier","le-domaine":
 var session={
  active:false,pool:[],firstQueue:[],seen:{},current:null,currentDirection:"DE_FR",
  attempts:0,correct:0,testResults:[],lastId:null,recentIds:[],firstRoundComplete:false,
- awaitingChoice:false,sourceLabel:"",currentResolved:false
+ awaitingChoice:false,sourceLabel:"",currentResolved:false,lastResult:null
 };
 
 function $(id){return document.getElementById(id)}
@@ -101,16 +101,60 @@ function pDefault(id){
 async function gp(id){var p=await reqP(os(S_PROGRESS).get(id));return Object.assign(pDefault(id),p||{})}
 async function sp(p){await reqP(os(S_PROGRESS,"readwrite").put(p))}
 
-function norm(s){return String(s||"").trim().toLowerCase().replace(/[’‘`´]/g,"'").replace(/\s+/g," ")}
-function stripAcc(s){try{return norm(s).normalize("NFD").replace(/[\u0300-\u036f]/g,"")}catch(e){return norm(s)}}
-function stripFrenchArticle(s){return norm(s).replace(/^(le|la|les|un|une|des)\s+/,"").replace(/^l'/,"")}
+function norm(s){
+ return String(s||"").trim().toLowerCase().replace(/[’‘`´]/g,"'").replace(/\s+/g," ")
+}
+function stripAcc(s){
+ try{return norm(s).normalize("NFD").replace(/[\u0300-\u036f]/g,"")}
+ catch(e){return norm(s)}
+}
+// Sehr toleranter Vergleich für Vokabeln:
+// Groß/Klein, Leerzeichen, Satzzeichen, Apostrophe und Akzente spielen keine Rolle.
+function looseNorm(s){
+ return stripAcc(s)
+  .replace(/œ/g,"oe").replace(/æ/g,"ae").replace(/ß/g,"ss")
+  .replace(/[^a-z0-9]/g,"")
+}
+function stripFrenchArticle(s){
+ return norm(s).replace(/^(le|la|les|un|une|des)\s+/,"").replace(/^l'/,"")
+}
+function stripGermanArticle(s){
+ return norm(s).replace(/^(der|die|das|ein|eine|einen|einem|einer)\s+/,"")
+}
 function germanAccepted(item,g){
- g=norm(g);
- var gn=g.replace(/^(der|die|das|ein|eine|einen|einem|einer)\s+/,"");
+ var lg=looseNorm(g),lgn=looseNorm(stripGermanArticle(g));
  return item.meanings.some(function(m){
-  var x=norm(m),xn=x.replace(/^(der|die|das|ein|eine|einen|einem|einer)\s+/,"");
-  return g===x||gn===xn
+  return lg===looseNorm(m)||lgn===looseNorm(stripGermanArticle(m))
  })
+}
+function levenshtein(a,b){
+ a=String(a||"");b=String(b||"");
+ var prev=new Array(b.length+1),cur=new Array(b.length+1);
+ for(var j=0;j<=b.length;j++)prev[j]=j;
+ for(var i=1;i<=a.length;i++){
+  cur[0]=i;
+  for(var k=1;k<=b.length;k++){
+   cur[k]=Math.min(cur[k-1]+1,prev[k]+1,prev[k-1]+(a[i-1]===b[k-1]?0:1))
+  }
+  var tmp=prev;prev=cur;cur=tmp
+ }
+ return prev[b.length]
+}
+function nearEnough(a,b){
+ a=looseNorm(a);b=looseNorm(b);
+ if(!a||!b||a===b)return false;
+ var maxLen=Math.max(a.length,b.length),dist=levenshtein(a,b);
+ var allowed=Math.min(3,Math.max(1,Math.floor(maxLen*0.15)));
+ var similarity=1-dist/maxLen;
+ return dist<=allowed&&similarity>=0.80
+}
+function germanNear(item,g){
+ var candidates=[];
+ item.meanings.forEach(function(m){
+  candidates.push(m);candidates.push(stripGermanArticle(m))
+ });
+ var inputs=[g,stripGermanArticle(g)];
+ return inputs.some(function(x){return candidates.some(function(c){return nearEnough(x,c)})})
 }
 function escapeHtml(s){return String(s).replace(/[&<>"']/g,function(m){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]})}
 
@@ -263,7 +307,7 @@ function resetSessionState(pool,label){
  session={
   active:true,pool:pool,firstQueue:pool.slice(),seen:{},current:null,currentDirection:"DE_FR",
   attempts:0,correct:0,testResults:[],lastId:null,recentIds:[],firstRoundComplete:false,
-  awaitingChoice:false,sourceLabel:label||"",currentResolved:false
+  awaitingChoice:false,sourceLabel:label||"",currentResolved:false,lastResult:null
  };
  $("roundCompletePanel").hidden=true;
  $("showAnswer").hidden=$("sessionTypeSelect").value==="test"
@@ -359,7 +403,8 @@ function endSession(){
 async function renderCurrent(){
  var v=session.current;if(!v)return;
  var p=await gp(v.id),d=session.currentDirection,fr=d==="DE_FR";
- session.currentResolved=false;
+ session.currentResolved=false;session.lastResult=null;
+ $("nearMissActions").hidden=true;
  clearTimeout(correctDetectTimer);
  $("check").textContent="Prüfen";
  $("prompt").textContent=fr?v.meanings.join(" / "):v.foreign;
@@ -391,13 +436,24 @@ function nextDue(level){
 }
 function evaluateAnswer(v,d,g){
  if(d==="DE_FR"){
-  var w=norm(v.foreign);
-  if(g===w)return{kind:"correct",reason:""};
-  if(stripAcc(g)===stripAcc(w))return{kind:"almost",reason:"Akzent/Sonderzeichen prüfen."};
-  if(stripFrenchArticle(stripAcc(g))===stripFrenchArticle(stripAcc(w)))return{kind:"almost",reason:"Artikel prüfen."};
-  return{kind:"wrong",reason:""}
+  // Satzzeichen, Leerzeichen und Akzente werden komplett ignoriert.
+  if(looseNorm(g)===looseNorm(v.foreign))return{kind:"correct",reason:"",canOverride:false};
+
+  // Ein fehlender/anderer Artikel ist nur eine kleine Abweichung.
+  if(looseNorm(stripFrenchArticle(g))===looseNorm(stripFrenchArticle(v.foreign))){
+   return{kind:"almost",reason:"Nur der Artikel unterscheidet sich.",canOverride:true}
+  }
+
+  // Kleine Tipp-/Scribble-Abweichungen dürfen vom Lernenden selbst als gewusst markiert werden.
+  if(nearEnough(g,v.foreign)){
+   return{kind:"almost",reason:"Nur eine kleine Schreibabweichung.",canOverride:true}
+  }
+  return{kind:"wrong",reason:"",canOverride:false}
  }
- return germanAccepted(v,g)?{kind:"correct",reason:""}:{kind:"wrong",reason:""}
+
+ if(germanAccepted(v,g))return{kind:"correct",reason:"",canOverride:false};
+ if(germanNear(v,g))return{kind:"almost",reason:"Nur eine kleine Schreibabweichung.",canOverride:true};
+ return{kind:"wrong",reason:"",canOverride:false}
 }
 async function recordResult(v,d,kind){
  var p=await gp(v.id);
@@ -425,16 +481,19 @@ async function checkAnswer(){
  if(!g){fb.className="feedback almost";fb.textContent="Bitte zuerst antworten.";keepFocus();return}
  var result=evaluateAnswer(v,d,g),expected=d==="DE_FR"?v.foreign:v.meanings.join(" / ");
  var p=await recordResult(v,d,result.kind);
+ session.lastResult={id:v.id,direction:d,kind:result.kind,canOverride:!!result.canOverride};
  session.attempts++;if(result.kind==="correct"){session.correct++}
  session.seen[v.id]=true;session.currentResolved=true;
  session.testResults.push({id:v.id,kind:result.kind,direction:d,prompt:d==="DE_FR"?v.meanings.join(" / "):v.foreign,expected:expected});
  updateSessionBadges();$("currentLevel").textContent="Lernstufe "+(d==="DE_FR"?p.deFr:p.frDe);
 
  if($("sessionTypeSelect").value==="test"){
+  $("nearMissActions").hidden=true;
   fb.className="feedback";fb.textContent="Antwort gespeichert.";
   $("answer").value="";clearTimeout(autoTimer);autoTimer=setTimeout(function(){chooseNext()},250);return
  }
 
+ $("nearMissActions").hidden=!(result.kind==="almost"&&result.canOverride);
  if(result.kind==="correct"){fb.className="feedback good";fb.innerHTML="✓ Richtig: <strong>"+escapeHtml(expected)+"</strong>"}
  else if(result.kind==="almost"){fb.className="feedback almost";fb.innerHTML="Fast richtig – "+escapeHtml(result.reason)+"<br>Richtig: <strong>"+escapeHtml(expected)+"</strong>"}
  else{fb.className="feedback bad";fb.innerHTML="✗ Noch nicht richtig.<br>Richtig: <strong>"+escapeHtml(expected)+"</strong>"}
@@ -442,7 +501,57 @@ async function checkAnswer(){
  keepFocus();
  if(result.kind==="correct"&&$("autoNext").checked){clearTimeout(autoTimer);autoTimer=setTimeout(function(){chooseNext()},750)}
 }
+async function markCurrentKnown(){
+ var lr=session.lastResult;
+ if(!session.active||!session.current||!lr||lr.id!==session.current.id||lr.kind!=="almost"||!lr.canOverride)return;
+
+ var p=await gp(lr.id),d=lr.direction;
+
+ // Bereits gespeichertes "fast richtig" sauber in "richtig" umwandeln,
+ // ohne eine zweite Abfrage zu erzeugen.
+ p.almost=Math.max(0,p.almost-1);
+ p.correct++;
+ if(d==="DE_FR"){
+  p.almostDEFR=Math.max(0,p.almostDEFR-1);
+  p.correctDEFR++;
+  p.deFr=Math.min(5,p.deFr+1);
+  p.dueDEFR=nextDue(p.deFr)
+ }else{
+  p.almostFRDE=Math.max(0,p.almostFRDE-1);
+  p.correctFRDE++;
+  p.frDe=Math.min(5,p.frDe+1);
+  p.dueFRDE=nextDue(p.frDe)
+ }
+ await sp(p);
+
+ session.correct++;
+ lr.kind="correct";lr.canOverride=false;
+
+ // Auch den letzten Session-Eintrag korrigieren.
+ for(var i=session.testResults.length-1;i>=0;i--){
+  if(session.testResults[i].id===lr.id){
+   session.testResults[i].kind="correct";
+   break
+  }
+ }
+
+ $("nearMissActions").hidden=true;
+ $("feedback").className="feedback good";
+ $("feedback").innerHTML="✓ Als richtig übernommen.";
+ $("currentLevel").textContent="Lernstufe "+(d==="DE_FR"?p.deFr:p.frDe);
+ updateSessionBadges();
+
+ if($("autoNext").checked){
+  clearTimeout(autoTimer);
+  autoTimer=setTimeout(function(){chooseNext()},650)
+ }else{
+  $("check").textContent="Weiter";
+  keepFocus()
+ }
+}
+
 async function skipCurrent(){
+ $("nearMissActions").hidden=true;
  if(!session.active||!session.current||session.awaitingChoice)return;
  var v=session.current,d=session.currentDirection;
  if(!session.seen[v.id]){
@@ -453,6 +562,7 @@ async function skipCurrent(){
  await chooseNext()
 }
 async function revealCurrent(){
+ $("nearMissActions").hidden=true;
  if($("sessionTypeSelect").value==="test")return;
  if(!session.active||!session.current||session.awaitingChoice)return;
  var v=session.current,d=session.currentDirection;
@@ -522,7 +632,7 @@ async function renderHome(){
   var days=Math.max(0,Math.ceil((new Date(e.date+"T12:00:00")-new Date())/86400000));
   $("homeExamText").textContent="Klassenarbeit in "+days+" Tag"+(days===1?"":"en")+" · Lernpensum planen"
  }else $("homeExamText").textContent="Stoff und Lernpensum planen";
- $("appStatus").textContent="✓ Version 4.0 läuft · "+(cid?courseName(cid)+" · "+all.length+" Vokabeln":"noch keine Vokabeln importiert")
+ $("appStatus").textContent="✓ Version 4.1 läuft · "+(cid?courseName(cid)+" · "+all.length+" Vokabeln":"noch keine Vokabeln importiert")
 }
 async function switchActiveCourse(id){
  setActiveCourse(id);saveSettings();populateAllSelectors();updateCourseLabels();await renderHome()
@@ -811,12 +921,13 @@ $("answer").addEventListener("keydown",function(e){
 $("answer").addEventListener("blur",function(){
  setTimeout(function(){if(!$("trainerView").hidden&&session.active&&!session.awaitingChoice)keepFocus()},60)
 });
-["check","showAnswer","continueWeak","endSession"].forEach(preserveAnswerFocusOnButton);
+["check","showAnswer","markKnown","continueWeak","endSession"].forEach(preserveAnswerFocusOnButton);
 
 $("startSession").onclick=startSession;
 $("startDue").onclick=startDueSession;
 $("check").onclick=checkAnswer;
 $("showAnswer").onclick=revealCurrent;
+$("markKnown").onclick=markCurrentKnown;
 $("continueWeak").onclick=continueWeak;
 $("endSession").onclick=endSession;
 

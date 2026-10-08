@@ -550,3 +550,24 @@ tbody tr:hover{background:#fbfcfe}
   .trainer-metrics{gap:7px}
   .trainer-metric strong{font-size:1.35rem}
 }
+
+
+/* Version 4.1 – tolerante Korrektur */
+.near-miss-actions{
+  display:flex;
+  gap:10px;
+  flex-wrap:wrap;
+  align-items:center;
+  margin-top:10px;
+  padding:10px 12px;
+  border:1px solid #efd79b;
+  border-radius:12px;
+  background:#fff8e5;
+}
+.near-miss-actions[hidden]{display:none}
+.known-button{
+  background:var(--ok);
+  border-color:var(--ok);
+  color:#fff;
+}
+.known-button:hover{filter:brightness(.97)}

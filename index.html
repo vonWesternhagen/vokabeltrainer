@@ -7,8 +7,8 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Vokabeltrainer">
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="stylesheet" href="styles.css?v=40">
-  <title>Vokabeltrainer – Version 4.0</title>
+  <link rel="stylesheet" href="styles.css?v=41">
+  <title>Vokabeltrainer – Version 4.1</title>
 </head>
 <body>
 <main>
@@ -18,7 +18,7 @@
       <p class="sub">Schritt für Schritt sicherer werden · mit deinem eigenen Lerntempo</p>
       <p class="header-note">Wähle deinen Lernweg, übe gezielt und sieh sofort, was schon sicher sitzt.</p>
     </div>
-    <div class="header-badges"><span class="course-badge" id="activeCourseBadge">Noch kein Kurs</span><span class="version">v4.0</span></div>
+    <div class="header-badges"><span class="course-badge" id="activeCourseBadge">Noch kein Kurs</span><span class="version">v4.1</span></div>
   </header>
 
   <div id="appStatus" class="status">JavaScript startet …</div>
@@ -198,6 +198,10 @@
       </label>
 
       <div id="feedback" class="feedback">Noch keine Antwort geprüft.</div>
+      <div id="nearMissActions" class="near-miss-actions" hidden>
+        <button type="button" id="markKnown" class="known-button">✓ Habe ich gewusst</button>
+        <span class="small">Nur bei kleinen Abweichungen verfügbar.</span>
+      </div>
 
       <div id="roundCompletePanel" class="round-complete" hidden>
         <strong id="roundCompleteText">Erste Runde abgeschlossen.</strong>
@@ -208,8 +212,9 @@
       </div>
 
       <p class="small note">
-        Die App setzt das Antwortfeld ausdrücklich auf Französisch bzw. Deutsch und hält den Fokus im Schreibfeld.
-        iPadOS entscheidet die tatsächliche Scribble-Sprache trotzdem anhand der aktiven Tastatursprache.
+        Satzzeichen, Leerzeichen und Akzentzeichen werden bei der Korrektur tolerant behandelt.
+        Bei kleinen Tipp- oder Erkennungsfehlern kannst du „Habe ich gewusst“ wählen.
+        iPadOS entscheidet die tatsächliche Scribble-Sprache weiterhin anhand der aktiven Tastatursprache.
       </p>
     </section>
   </section>
@@ -370,6 +375,6 @@
     </section>
   </section>
 </main>
-<script src="app.js?v=40"></script>
+<script src="app.js?v=41"></script>
 </body>
 </html>
