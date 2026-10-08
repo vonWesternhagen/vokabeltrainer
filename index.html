@@ -7,17 +7,17 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Vokabeltrainer">
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="stylesheet" href="styles.css?v=35">
-  <title>Vokabeltrainer – Prototyp 3.5</title>
+  <link rel="stylesheet" href="styles.css?v=36">
+  <title>Vokabeltrainer – Prototyp 3.6</title>
 </head>
 <body>
 <main>
   <header class="page-head">
     <div>
       <h1>Vokabeltrainer</h1>
-      <p class="sub">Prototyp 3.5 · Lernbereiche · Lernreihenfolge · Schwächenfokus · Klassenarbeit · Statistik</p>
+      <p class="sub">Prototyp 3.6 · Lernbereiche · Lernreihenfolge · Schwächenfokus · Klassenarbeit · Statistik</p>
     </div>
-    <div class="header-badges"><span class="course-badge">Französisch 10</span><span class="version">v3.5</span></div>
+    <div class="header-badges"><span class="course-badge">Französisch 10</span><span class="version">v3.6</span></div>
   </header>
 
   <div id="appStatus" class="status">JavaScript startet …</div>
@@ -76,6 +76,7 @@
       </p>
       <div class="buttons">
         <button id="startSession" type="button">Session starten / neu starten</button>
+        <button id="startDue" type="button" class="secondary">Heute fällige / schwache lernen</button>
       </div>
       <p class="small" id="scopeInfo"></p>
     </section>
@@ -112,6 +113,13 @@
       </label>
 
       <div id="feedback" class="feedback">Noch keine Antwort geprüft.</div>
+      <div id="roundCompletePanel" class="round-complete" hidden>
+        <strong id="roundCompleteText">Erste Runde abgeschlossen.</strong>
+        <div class="buttons">
+          <button id="continueWeak" type="button">Schwächen weiterüben</button>
+          <button id="endSession" type="button" class="secondary">Session beenden</button>
+        </div>
+      </div>
       <p class="small note">
         Für Handschrift nutzt der Prototyp iPad Scribble. Zum Sprechen bitte die iPad-Diktierfunktion im Antwortfeld verwenden.
       </p>
@@ -121,19 +129,23 @@
   <section id="planView" hidden>
     <section class="card">
       <h2>Klassenarbeit planen</h2>
-      <div class="form-grid">
+      <div class="form-grid compact">
         <label>Datum
           <input id="examDate" type="date">
         </label>
-        <label>Unité / Modul
-          <select id="examUnit"></select>
-        </label>
-        <label>Teilbereich
-          <select id="examPart"></select>
-        </label>
       </div>
+
+      <h3>Stoff auswählen</h3>
+      <p class="small">Mehrere Teilbereiche und Module können gemeinsam für eine Klassenarbeit ausgewählt werden.</p>
+      <div class="buttons">
+        <button id="selectAllExamScopes" type="button" class="secondary">Alle markieren</button>
+        <button id="clearExamScopes" type="button" class="secondary">Auswahl löschen</button>
+      </div>
+      <div id="examScopeList" class="scope-check-list"></div>
+
       <div class="buttons">
         <button id="saveExam" type="button">Klassenarbeit speichern</button>
+        <button id="startExamLearning" type="button">Heute dafür lernen</button>
         <button id="deleteExam" class="secondary" type="button">Klassenarbeit löschen</button>
       </div>
       <div id="examSummary" class="plan-box"></div>
@@ -153,6 +165,12 @@
       <div class="form-grid compact">
         <label>Unité / Modul <select id="overviewUnit"></select></label>
         <label>Teilbereich <select id="overviewPart"></select></label>
+        <label>Sortierung
+          <select id="overviewSort">
+            <option value="book">Buchreihenfolge</option>
+            <option value="weakest">schwierigste zuerst</option>
+          </select>
+        </label>
       </div>
 
       <div class="summary-grid">
@@ -170,10 +188,7 @@
               <th>Vokabel</th>
               <th>DE→FR</th>
               <th>FR→DE</th>
-              <th>geübt</th>
-              <th>richtig</th>
-              <th>fast</th>
-              <th>falsch</th>
+              <th>Gesamt</th>
               <th>nächste Wdh.</th>
             </tr>
           </thead>
@@ -195,6 +210,9 @@
       <label class="search-label">Suche
         <input id="vocabSearch" type="search" placeholder="z. B. Beruf, métier, santé …" autocomplete="off">
       </label>
+      <div class="buttons">
+        <button id="newVocab" type="button">+ Neue Vokabel</button>
+      </div>
       <div id="vocabSearchInfo" class="small"></div>
       <div id="vocabList" class="vocab-list"></div>
     </section>
@@ -231,6 +249,7 @@
         <div class="buttons">
           <button id="saveEdit" type="button">Speichern</button>
           <button id="cancelEdit" class="secondary" type="button">Abbrechen</button>
+          <button id="deleteVocab" class="danger" type="button">Vokabel löschen</button>
         </div>
       </section>
     </div>
@@ -238,26 +257,46 @@
 
   <section id="dataView" hidden>
     <section class="card">
-      <h2>Vokabeln importieren / sichern</h2>
+      <h2>Neue Vokabeln additiv einlesen</h2>
       <p class="small">
-        JSON-Import ist additiv: neue Vokabeln werden ergänzt. Bei gleicher ID werden Texte aktualisiert, der Lernstand bleibt erhalten.
-        Eine zweite Sprache kann über eine zweite JSON-Datei mit eigener course.id importiert werden.
+        Dieser Import fügt <strong>nur neue Vokabeln</strong> hinzu. Bereits vorhandene IDs werden nicht verändert.
+        Damit bleiben manuelle Korrekturen und Verschiebungen erhalten. Lernstände werden hier niemals importiert oder überschrieben.
       </p>
       <div class="buttons">
-        <label class="fileButton" for="jsonFile">JSON importieren</label>
-        <input id="jsonFile" type="file" accept=".json,application/json">
-        <button type="button" id="export" class="secondary">Komplettes Backup exportieren</button>
-        <button type="button" id="exportCourse" class="secondary">Aktuellen Kurs exportieren</button>
-        <button type="button" id="reset" class="secondary">Testdaten zurücksetzen</button>
+        <label class="fileButton" for="vocabImportFile">Vokabel-JSON auswählen</label>
+        <input id="vocabImportFile" type="file" accept=".json,application/json">
+        <button type="button" id="exportCourse" class="secondary">Französisch 10 als Vokabeldatei exportieren</button>
       </div>
-      <div id="importResult" class="small"></div>
+      <div id="vocabImportResult" class="small"></div>
+    </section>
+
+    <section class="card">
+      <h2>Komplettes Backup</h2>
+      <p class="small">
+        Ein vollständiges Backup enthält Vokabeln, Lernstände in beiden Richtungen, Klassenarbeitsplanung und Einstellungen.
+        <strong>Wiederherstellen ersetzt den aktuellen lokalen Datenbestand vollständig.</strong>
+      </p>
+      <div class="buttons">
+        <button type="button" id="exportBackup" class="secondary">Komplettes Backup exportieren</button>
+        <label class="fileButton danger-label" for="backupRestoreFile">Backup wiederherstellen</label>
+        <input id="backupRestoreFile" type="file" accept=".json,application/json">
+      </div>
+      <div id="backupResult" class="small"></div>
       <div class="plan-box">
-        <strong>Backup / NAS:</strong><br>
-        Exportierte JSON-Dateien können über die iPad-Dateien-App auf FRITZ!NAS gespeichert und auf einem anderen Gerät wieder importiert werden.
+        <strong>NAS / Gerätewechsel:</strong><br>
+        Das komplette Backup kann über die Dateien-App auf FRITZ!NAS gespeichert werden. Auf einem anderen Gerät wird es ausschließlich über
+        „Backup wiederherstellen“ eingelesen. Eine reine Vokabeldatei gehört dagegen immer in den additiven Import oben.
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Wartung</h2>
+      <div class="buttons">
+        <button type="button" id="reset" class="secondary">Lokale Daten auf Teststand zurücksetzen</button>
       </div>
     </section>
   </section>
 </main>
-<script src="app.js?v=35"></script>
+<script src="app.js?v=36"></script>
 </body>
 </html>
