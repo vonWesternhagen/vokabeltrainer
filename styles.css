@@ -571,3 +571,71 @@ tbody tr:hover{background:#fbfcfe}
   color:#fff;
 }
 .known-button:hover{filter:brightness(.97)}
+
+
+/* =========================================================
+   VERSION 4.3 – vereinfachter Lernfluss
+   ========================================================= */
+.learn-setup-card{max-width:980px;margin-inline:auto}
+.learn-options{grid-template-columns:repeat(5,minmax(130px,1fr));align-items:end}
+.learn-mode-buttons{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:20px}
+.learn-mode-card{
+  min-height:105px;padding:18px;text-align:left;display:flex;flex-direction:column;
+  justify-content:center;gap:5px;background:#f1f6ff;border-color:#cbdaf3;color:var(--ink)
+}
+.learn-mode-card strong{font-size:1.08rem;color:var(--blue)}
+.learn-mode-card span{font-size:.83rem;color:var(--muted);font-weight:500}
+.learn-mode-card.weak-mode{background:#fff8e5;border-color:#efd79b}
+.learn-mode-card.weak-mode strong{color:#805600}
+
+.compact-trainer{height:min(760px,calc(100vh - 28px));min-height:560px;display:flex;flex-direction:column;padding:14px 18px 16px}
+body.trainer-mode{padding-top:14px;padding-bottom:14px}
+body.trainer-mode .page-head,body.trainer-mode #appStatus{display:none}
+.trainer-compact-top{
+  display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center;
+  padding-bottom:8px;border-bottom:1px solid var(--line)
+}
+.trainer-scope-wrap{text-align:center;min-width:0}
+.trainer-scope{font-size:.86rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.direction-mini{font-size:.76rem;color:var(--muted)}
+.trainer-quick-stats{display:flex;gap:10px;align-items:center;white-space:nowrap}
+.trainer-quick-stats strong{font-size:1rem}
+.trainer-quick-stats span{font-size:.9rem;font-weight:800;color:var(--blue)}
+.compact-progress{height:6px;margin:8px 0 0}
+.trainer-exercise{
+  flex:1;min-height:0;display:grid;
+  grid-template-rows:minmax(115px,1fr) minmax(100px,150px) auto auto minmax(0,auto) auto;
+  align-content:stretch;gap:9px;padding-top:8px
+}
+.compact-prompt{
+  margin:0;min-height:115px;padding:12px 18px;font-size:clamp(28px,5vw,46px);
+  display:flex;align-items:center;justify-content:center
+}
+.compact-answer{
+  margin:0;min-height:100px;height:100%;max-height:150px;font-size:clamp(24px,4vw,32px);
+  padding:13px 15px;resize:none
+}
+.compact-actions{margin:0;grid-template-columns:1fr 1fr}
+.compact-actions button{min-height:50px}
+.compact-options{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.compact-toggle{margin:0;padding:7px 10px;font-size:.78rem;min-height:38px;display:flex;align-items:center}
+.compact-feedback{margin:0;padding:8px 11px;min-height:38px;font-size:.88rem}
+.near-miss-actions{margin:0;padding:7px 9px}
+.compact-round-complete{
+  margin:auto;width:min(620px,100%);padding:26px;text-align:center;font-size:1.05rem
+}
+.compact-round-complete .buttons{justify-content:center;margin-top:18px}
+
+@media(max-width:900px){
+ .learn-options{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:650px){
+ .learn-mode-buttons{grid-template-columns:1fr}
+ .compact-trainer{height:calc(100vh - 16px);min-height:520px;padding:10px}
+ .trainer-compact-top{grid-template-columns:auto 1fr auto;gap:7px}
+ .trainer-scope{font-size:.75rem}
+ .trainer-exercise{grid-template-rows:minmax(100px,1fr) 110px auto auto minmax(0,auto) auto}
+ .compact-prompt{font-size:30px;min-height:100px}
+ .compact-answer{font-size:25px;min-height:100px}
+ .compact-toggle{font-size:.72rem;padding:6px}
+}

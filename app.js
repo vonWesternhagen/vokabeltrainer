@@ -1,11 +1,11 @@
 (function(){
 "use strict";
 
-var APP_VERSION="4.2";
+var APP_VERSION="4.3";
 var DB_NAME="VokabeltrainerTest";
 var DB_VERSION=2;
 var S_VOCAB="vocab",S_PROGRESS="progress",S_COURSES="courses",S_EXAMS="exams";
-var SETTINGS_KEY="vokabeltrainer.settings.v3";
+var SETTINGS_KEY="vokabeltrainer.settings.v4";
 var ACTIVE_COURSE_KEY="vokabeltrainer.activeCourse.v1";
 var db=null,vocab=[],courses=[],autoTimer=null,correctDetectTimer=null,ACTIVE_COURSE_ID=null;
 var LEGACY_SEEDS={"le-projet":"le projet","le-metier":"le métier","le-domaine":"le domaine"};
@@ -36,13 +36,39 @@ function openDb(){
 }
 
 async function prepareData(){
+ // Historische Prototyp-Startvokabeln endgültig entfernen.
  for(var id in LEGACY_SEEDS){
-  var v=await reqP(os(S_VOCAB).get(id));
-  if(v && (v.seed===true || (v.courseId==="franzoesisch" && norm(v.foreign)===norm(LEGACY_SEEDS[id])))){
+  var legacy=await reqP(os(S_VOCAB).get(id));
+  if(legacy && (legacy.seed===true || (legacy.courseId==="franzoesisch" && norm(legacy.foreign)===norm(LEGACY_SEEDS[id])))){
    await reqP(os(S_VOCAB,"readwrite").delete(id));
    await reqP(os(S_PROGRESS,"readwrite").delete(id))
   }
  }
+
+ // Datenstruktur vereinheitlichen:
+ // unitId = nur Unité/Modul, part = Teilbereich, sectionName = optionale Buch-Unterüberschrift.
+ var all=await reqP(os(S_VOCAB).getAll());
+ var tx=db.transaction(S_VOCAB,"readwrite"),store=tx.objectStore(S_VOCAB),changed=0;
+ all.forEach(function(v){
+  var dirty=false,uid=String(v.unitId||"");
+
+  // Französisch 6, Seiten 176–178: Auftakt VOR Unité 1 => Unité 0.
+  if(v.courseId==="franzoesisch-6" && (/^p17[678]-/.test(uid) || (Number(v.page)>=176&&Number(v.page)<=178))){
+   if(!v.sectionName)v.sectionName=v.unitName||uid;
+   if(v.unitId!=="unite-0"){v.unitId="unite-0";dirty=true}
+   if(v.part!=="auftakt"){v.part="auftakt";dirty=true}
+  }else{
+   // Alte zusammengesetzte IDs wie unite-1-volet-1 werden sauber getrennt.
+   var m=uid.match(/^(unite-\d+)-(auftakt|vocabulaire-thematique|volet-1|volet-2)$/);
+   if(m){
+    v.unitId=m[1];v.part=m[2];dirty=true
+   }else if(/^module-[a-z]$/.test(uid)){
+    if(v.part!=="alle"){v.part="alle";dirty=true}
+   }
+  }
+  if(dirty){store.put(v);changed++}
+ });
+ await new Promise(function(res,rej){tx.oncomplete=res;tx.onerror=function(){rej(tx.error)}});
 }
 function usedCourseIds(){return Array.from(new Set(vocab.map(function(v){return v.courseId}).filter(Boolean)))}
 function courseHasVocab(id){return !!id && vocab.some(function(v){return v.courseId===id})}
@@ -158,14 +184,18 @@ function germanNear(item,g){
 }
 function escapeHtml(s){return String(s).replace(/[&<>"']/g,function(m){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]})}
 
-function unitGroup(unitId){
- if(/^unite-1/.test(unitId))return"unite-1";
- if(/^unite-2/.test(unitId))return"unite-2";
- if(/^unite-3/.test(unitId))return"unite-3";
- if(/^module-/.test(unitId))return unitId;
+function unitGroup(value){
+ var unitId=typeof value==="object"&&value?value.unitId:value;
+ unitId=String(unitId||"");
+ var m=unitId.match(/^(unite-\d+)/);
+ if(m)return m[1];
+ if(/^module-[a-z]$/.test(unitId))return unitId;
  return unitId||"ohne"
 }
-function partGroup(unitId){
+function partGroup(value){
+ var v=typeof value==="object"&&value?value:null;
+ if(v&&v.part)return v.part;
+ var unitId=String(v?v.unitId:value||"");
  if(/auftakt/.test(unitId))return"auftakt";
  if(/vocabulaire-thematique/.test(unitId))return"vocabulaire-thematique";
  if(/volet-1/.test(unitId))return"volet-1";
@@ -174,16 +204,20 @@ function partGroup(unitId){
  return"sonstiges"
 }
 function unitLabel(x){
- var fixed=({"unite-1":"Unité 1","unite-2":"Unité 2","unite-3":"Unité 3","module-a":"Module A","module-b":"Module B","module-c":"Module C","module-d":"Module D","alle":"Alle"})[x];
- if(fixed)return fixed;
- var hit=vocab.find(function(v){return v.courseId===activeCourseId()&&unitGroup(v.unitId)===x&&v.unitName});
- if(hit&&hit.unitName)return hit.unitName;
- var m=String(x||"").match(/^p(\d+)-(.+)$/);
- if(m)return "S. "+m[1]+" · "+m[2].split("-").map(function(w){return w.charAt(0).toUpperCase()+w.slice(1)}).join(" ");
+ if(x==="alle")return"Alle Vokabeln";
+ var um=String(x||"").match(/^unite-(\d+)$/);
+ if(um)return"Unité "+um[1];
+ var mm=String(x||"").match(/^module-([a-z])$/);
+ if(mm)return"Module "+mm[1].toUpperCase();
  return x
 }
-function partLabel(x){return({"alle":"Alle","auftakt":"Auftaktseite","vocabulaire-thematique":"Vocabulaire thématique","volet-1":"Volet 1","volet-2":"Volet 2","sonstiges":"Sonstiges"})[x]||x}
-function courseName(id){var c=courses.find(function(x){return x.id===id});return c?c.name:id}
+function partLabel(x){
+ return({"alle":"Alle Teilbereiche","auftakt":"Auftakt","vocabulaire-thematique":"Vocabulaire thématique","volet-1":"Volet 1","volet-2":"Volet 2","sonstiges":"Sonstiges"})[x]||x
+}
+function courseName(id){
+ var c=courses.find(function(x){return x.id===id});
+ return c?(c.label||c.name||c.id):(id||"Noch kein Kurs")
+}
 
 function fillSelect(sel,items,allLabel){
  if(!sel)return;
@@ -193,32 +227,43 @@ function fillSelect(sel,items,allLabel){
  if([].slice.call(sel.options).some(function(o){return o.value===old}))sel.value=old
 }
 function unitsForCourse(courseId){
- var order={"unite-1":1,"unite-2":2,"unite-3":3,"module-a":10,"module-b":11,"module-c":12,"module-d":13};
- return Array.from(new Set(vocab.filter(function(v){return courseId==="alle"||v.courseId===courseId}).map(function(v){return unitGroup(v.unitId)})))
-  .sort(function(a,b){return(order[a]||99)-(order[b]||99)||a.localeCompare(b)})
-}
-function populateUnit(sel,courseId,includeAll){
- fillSelect(sel,unitsForCourse(courseId).map(function(x){return{value:x,label:unitLabel(x)}}),includeAll?"Alle Vokabeln":null)
+ return Array.from(new Set(vocab.filter(function(v){return courseId==="alle"||v.courseId===courseId}).map(function(v){return unitGroup(v)})))
+  .sort(function(a,b){
+   var au=String(a).match(/^unite-(\d+)$/),bu=String(b).match(/^unite-(\d+)$/);
+   if(au&&bu)return Number(au[1])-Number(bu[1]);
+   if(au)return-1;if(bu)return 1;
+   var am=String(a).match(/^module-([a-z])$/),bm=String(b).match(/^module-([a-z])$/);
+   if(am&&bm)return am[1].localeCompare(bm[1]);
+   if(am)return-1;if(bm)return 1;
+   return String(a).localeCompare(String(b))
+  })
 }
 function partsFor(courseId,unit){
- if(/^module-[a-d]$/.test(unit))return[];
+ if(/^module-[a-z]$/.test(unit)||unit==="unite-0")return unit==="unite-0"?["auftakt"]:[];
  return Array.from(new Set(vocab.filter(function(v){
-  return(courseId==="alle"||v.courseId===courseId)&&(unit==="alle"||unitGroup(v.unitId)===unit)
- }).map(function(v){return partGroup(v.unitId)}))).filter(function(x){return x!=="alle"}).sort()
+  return(courseId==="alle"||v.courseId===courseId)&&(unit==="alle"||unitGroup(v)===unit)
+ }).map(function(v){return partGroup(v)}))).filter(function(x){return x!=="alle"}).sort(function(a,b){
+  var order={"auftakt":1,"vocabulaire-thematique":2,"volet-1":3,"volet-2":4,"sonstiges":9};
+  return(order[a]||99)-(order[b]||99)||a.localeCompare(b)
+ })
 }
 function populatePart(sel,courseId,unit,includeAll){
  if(unit==="alle"){
   sel.innerHTML="";var all=document.createElement("option");all.value="alle";all.textContent="Alle Vokabeln";sel.appendChild(all);sel.disabled=true;return
  }
+ if(unit==="unite-0"){
+  sel.innerHTML="";var intro=document.createElement("option");intro.value="auftakt";intro.textContent="Auftakt";sel.appendChild(intro);sel.disabled=true;return
+ }
+ if(/^module-[a-z]$/.test(unit)){
+  sel.innerHTML="";var mod=document.createElement("option");mod.value="alle";mod.textContent="gesamtes Modul";sel.appendChild(mod);sel.disabled=true;return
+ }
  var parts=partsFor(courseId,unit);
- fillSelect(sel,parts.map(function(x){return{value:x,label:partLabel(x)}}),includeAll?"Alle":null);
- if(/^module-[a-d]$/.test(unit)){
-  sel.innerHTML="";var o=document.createElement("option");o.value="alle";o.textContent="gesamtes Modul";sel.appendChild(o);sel.disabled=true
- }else sel.disabled=false
+ fillSelect(sel,parts.map(function(x){return{value:x,label:partLabel(x)}}),includeAll?"Alle Teilbereiche":null);
+ sel.disabled=false
 }
 function filtered(courseId,unit,part){
  return vocab.filter(function(v){
-  return(courseId==="alle"||v.courseId===courseId)&&(unit==="alle"||unitGroup(v.unitId)===unit)&&(part==="alle"||partGroup(v.unitId)===part)
+  return(courseId==="alle"||v.courseId===courseId)&&(unit==="alle"||unitGroup(v)===unit)&&(part==="alle"||partGroup(v)===part)
  })
 }
 
@@ -232,11 +277,16 @@ function statsForDir(p,dir){
  }
 }
 async function weakScore(v,dir){
- var p=await gp(v.id),s=statsForDir(p,dir),lvl=s.level;
- var knownDirectional=s.correct+s.almost+s.wrong;
- var fail=knownDirectional?(s.wrong+s.almost):(p.wrong+p.almost);
- var rate=knownDirectional&&s.attempts?s.correct/s.attempts:(p.attempts?p.correct/p.attempts:0);
- return lvl*100+rate*20-fail*3+Math.min(s.attempts||p.attempts,10)
+ var p=await gp(v.id),s=statsForDir(p,dir);
+ var attempts=s.attempts||p.attempts||0;
+ var correct=s.correct||0,almost=s.almost||0,wrong=s.wrong||0;
+ var success=attempts?(correct+0.5*almost)/attempts:1;
+ var level=Number.isFinite(s.level)?s.level:0;
+
+ // Niedriger = schwächer.
+ // Fehlerquote dominiert, Lernstufe stabilisiert, viele belegte Fehlversuche verstärken die Aussage.
+ var confidence=Math.min(attempts,8)/8;
+ return success*60 + level*7 + confidence*8 - Math.min(wrong+0.5*almost,8)*2
 }
 async function orderPool(arr,mode,dir){
  var a=arr.slice();
@@ -265,13 +315,11 @@ async function priorityPool(arr){
 function collectSettings(){
  return{
   activeCourse:activeCourseId(),
-  unit:$("unitSelect")?$("unitSelect").value:null,
-  part:$("partSelect")?$("partSelect").value:null,
-  order:$("orderSelect")?$("orderSelect").value:"forward",
+  unit:$("unitSelect")?$("unitSelect").value:"alle",
+  part:$("partSelect")?$("partSelect").value:"alle",
+  order:$("orderSelect")?$("orderSelect").value:"random",
   direction:$("directionSelect")?$("directionSelect").value:"DE_FR",
-  sessionType:$("sessionTypeSelect")?$("sessionTypeSelect").value:"learn",
-  distinctCount:$("distinctCount")?parseInt($("distinctCount").value,10)||20:20,
-  adaptive:$("adaptiveAfterFirst")?$("adaptiveAfterFirst").checked:true,
+  distinctCount:$("distinctCount")?parseInt($("distinctCount").value,10)||10:10,
   autoNext:$("autoNext")?$("autoNext").checked:true,
   autoDetectCorrect:$("autoDetectCorrect")?$("autoDetectCorrect").checked:true,
   overviewUnit:$("overviewUnit")?$("overviewUnit").value:"alle",
@@ -290,21 +338,24 @@ function applySettings(s){
  if(s.activeCourse&&courseHasVocab(s.activeCourse))setActiveCourse(s.activeCourse);
  populateCourseSelector();populateAllSelectors();
  function setIf(id,val){var el=$(id);if(el&&val!=null&&[].slice.call(el.options||[]).some(function(o){return o.value===String(val)}))el.value=val}
- setIf("unitSelect",s.unit);
+ setIf("unitSelect",s.unit||"alle");
  populatePart($("partSelect"),activeCourseId(),$("unitSelect").value,true);
  setIf("partSelect",s.part);
- setIf("orderSelect",s.order);setIf("directionSelect",s.direction);setIf("sessionTypeSelect",s.sessionType);
- if($("distinctCount")&&s.distinctCount)$("distinctCount").value=s.distinctCount;
- if($("adaptiveAfterFirst")&&typeof s.adaptive==="boolean")$("adaptiveAfterFirst").checked=s.adaptive;
+ setIf("orderSelect",s.order||"random");
+ setIf("directionSelect",s.direction||"DE_FR");
+ if($("distinctCount"))$("distinctCount").value=s.distinctCount||10;
  if($("autoNext")&&typeof s.autoNext==="boolean")$("autoNext").checked=s.autoNext;
  if($("autoDetectCorrect")&&typeof s.autoDetectCorrect==="boolean")$("autoDetectCorrect").checked=s.autoDetectCorrect;
- setIf("overviewUnit",s.overviewUnit);
+ setIf("overviewUnit",s.overviewUnit||"alle");
  populatePart($("overviewPart"),activeCourseId(),$("overviewUnit").value,true);
- setIf("overviewPart",s.overviewPart);setIf("overviewSort",s.overviewSort)
+ setIf("overviewPart",s.overviewPart);
+ setIf("overviewSort",s.overviewSort||"book")
 }
 
 function currentScopeText(){
- return courseName(activeCourseId())+" · "+unitLabel($("unitSelect").value)+" · "+partLabel($("partSelect").value)
+ var unit=$("unitSelect").value,part=$("partSelect").value,text=courseName(activeCourseId())+" · "+unitLabel(unit);
+ if(unit!=="alle"&&!/^module-/.test(unit)&&unit!=="unite-0"&&part&&part!=="alle")text+=" · "+partLabel(part);
+ return text
 }
 function resetSessionState(pool,label){
  session={
@@ -313,125 +364,145 @@ function resetSessionState(pool,label){
   awaitingChoice:false,sourceLabel:label||"",currentResolved:false,lastResult:null
  };
  $("roundCompletePanel").hidden=true;
- $("showAnswer").hidden=$("sessionTypeSelect").value==="test"
+ $("trainerExercise").hidden=false;
+ $("showAnswer").hidden=false
 }
-async function startSession(){
+async function applyQuestionOrder(selected,available,mode,dir){
+ var a=selected.slice(),position=new Map();
+ available.forEach(function(v,i){position.set(v.id,i)});
+ if(mode==="random")return a.sort(function(){return Math.random()-.5});
+ if(mode==="reverse")return a.sort(function(x,y){return(position.get(y.id)||0)-(position.get(x.id)||0)});
+ if(mode==="weakest"){
+  var scored=[];for(var i=0;i<a.length;i++)scored.push([a[i],await weakScore(a[i],dir)]);
+  scored.sort(function(x,y){return x[1]-y[1]});return scored.map(function(x){return x[0]})
+ }
+ return a.sort(function(x,y){return(position.get(x.id)||0)-(position.get(y.id)||0)})
+}
+async function selectNewPool(available,requested,dir,mode){
+ var fresh=[],practiced=[];
+ for(var i=0;i<available.length;i++){
+  var p=await gp(available[i].id);
+  if(p.attempts===0)fresh.push(available[i]);else practiced.push(available[i])
+ }
+
+ // Neue Vokabeln entsprechend der gewünschten Reihenfolge auswählen.
+ var freshOrdered=await applyQuestionOrder(fresh,available,mode,dir);
+ var picked=freshOrdered.slice(0,Math.min(requested,freshOrdered.length));
+
+ // Fehlende Plätze ausschließlich mit den schwächsten bereits geübten Vokabeln auffüllen.
+ if(picked.length<requested&&practiced.length){
+  var weak=[];
+  for(var j=0;j<practiced.length;j++)weak.push([practiced[j],await weakScore(practiced[j],dir)]);
+  weak.sort(function(a,b){return a[1]-b[1]});
+  picked=picked.concat(weak.slice(0,requested-picked.length).map(function(x){return x[0]}))
+ }
+ return{pool:await applyQuestionOrder(picked,available,mode,dir),newCount:Math.min(fresh.length,requested)}
+}
+async function selectWeakPool(available,requested,dir,mode){
+ var practiced=[];
+ for(var i=0;i<available.length;i++){
+  var p=await gp(available[i].id);
+  if(p.attempts>0)practiced.push(available[i])
+ }
+ if(!practiced.length)return[];
+ var scored=[];
+ for(var j=0;j<practiced.length;j++)scored.push([practiced[j],await weakScore(practiced[j],dir)]);
+ scored.sort(function(a,b){return a[1]-b[1]});
+ var picked=scored.slice(0,Math.min(requested,scored.length)).map(function(x){return x[0]});
+ return await applyQuestionOrder(picked,available,mode,dir)
+}
+async function startLearningMode(mode){
  if(!activeCourseId()){$("scopeInfo").textContent="Bitte zuerst einen Kurs importieren oder auswählen.";return}
  var available=filtered(activeCourseId(),$("unitSelect").value,$("partSelect").value);
  if(!available.length){$("scopeInfo").textContent="Für diese Auswahl gibt es keine Vokabeln.";return}
+
  var requested=parseInt($("distinctCount").value,10);
- if(!Number.isFinite(requested)||requested<1)requested=available.length;
+ if(!Number.isFinite(requested)||requested<1)requested=10;
  requested=Math.min(requested,available.length);
- var ordered=await orderPool(available,$("orderSelect").value,$("directionSelect").value);
- var pool=ordered.slice(0,requested);
- resetSessionState(pool,currentScopeText());
- $("scopeInfo").textContent=currentScopeText()+" · "+pool.length+" verschiedene Vokabeln ausgewählt"+
-  (available.length>pool.length?" (von "+available.length+" verfügbaren).":".")+" Jede wird zuerst genau einmal abgefragt.";
- saveSettings();showView("trainer");await chooseNext(true)
-}
-async function startDueSession(){
- if(!activeCourseId()){$("scopeInfo").textContent="Bitte zuerst einen Kurs auswählen.";return}
- var available=filtered(activeCourseId(),$("unitSelect").value,$("partSelect").value),focus=[];
- for(var i=0;i<available.length;i++){
-  var p=await gp(available[i].id);
-  if(p.attempts===0||isDue(p)||Math.min(p.deFr,p.frDe)<=1)focus.push(available[i])
+
+ var dir=$("directionSelect").value,order=$("orderSelect").value,pool=[],label=currentScopeText();
+ if(mode==="new"){
+  var result=await selectNewPool(available,requested,dir,order);pool=result.pool;
+  if(!pool.length){$("scopeInfo").textContent="Für diese Auswahl gibt es keine passenden Vokabeln.";return}
+  label+=" · Neue Vokabeln";
+  $("scopeInfo").textContent=result.newCount+" neue Vokabel"+(result.newCount===1?"":"n")+" · "+
+   (pool.length-result.newCount)+" schwierige zum Auffüllen · "+pool.length+" insgesamt."
+ }else{
+  pool=await selectWeakPool(available,requested,dir,order);
+  if(!pool.length){$("scopeInfo").textContent="In dieser Auswahl wurde noch keine Vokabel geübt. Starte zuerst „Neue Vokabeln lernen“.";return}
+  label+=" · Schlecht gekonnte";
+  $("scopeInfo").textContent=pool.length+" schlecht gekonnte Vokabeln ausgewählt."
  }
- if(!focus.length){$("scopeInfo").textContent="In diesem Bereich sind derzeit keine neuen, fälligen oder schwachen Vokabeln.";return}
- focus=await priorityPool(focus);
- var requested=parseInt($("distinctCount").value,10)||20;
- focus=focus.slice(0,Math.min(requested,focus.length));
- $("sessionTypeSelect").value="learn";
- resetSessionState(focus,"Heute fällig / schwach");
- $("scopeInfo").textContent="Heute fällig / schwach · "+focus.length+" verschiedene Vokabeln.";
- saveSettings();showView("trainer");await chooseNext(true)
+
+ resetSessionState(pool,label);
+ saveSettings();showView("trainer");await chooseNext()
 }
+async function startNewSession(){await startLearningMode("new")}
+async function startWeakSession(){await startLearningMode("weak")}
+
 async function startCustomSession(pool,label){
  if(!pool.length)return;
- $("sessionTypeSelect").value="learn";
  $("distinctCount").value=pool.length;
  resetSessionState(pool,label);
- showView("trainer");
- $("scopeInfo").textContent=label+" · "+pool.length+" verschiedene Vokabeln.";
- saveSettings();await chooseNext(true)
+ showView("trainer");saveSettings();await chooseNext()
 }
+
 function chooseDirection(){
  var d=$("directionSelect").value;
  return d==="MIXED"?(Math.random()<.5?"DE_FR":"FR_DE"):d
 }
 async function chooseNext(){
- if(!session.active||session.awaitingChoice)return;
+ if(!session.active)return;
  var v=null;
  while(session.firstQueue.length){
   var candidate=session.firstQueue.shift();
   if(!session.seen[candidate.id]){v=candidate;break}
  }
- if(!v&&!session.firstRoundComplete){
-  session.firstRoundComplete=true;
-  if($("sessionTypeSelect").value==="test"){finishTest();return}
-  session.awaitingChoice=true;
-  $("roundCompleteText").textContent=session.pool.length+" verschiedene Vokabeln einmal abgeschlossen.";
-  $("roundCompletePanel").hidden=false;
-  $("prompt").textContent="Erste Runde geschafft.";
-  $("answer").value="";
-  return
- }
- if(!v){
-  if($("adaptiveAfterFirst").checked){
-   var scored=[];for(var i=0;i<session.pool.length;i++)scored.push([session.pool[i],await weakScore(session.pool[i],$("directionSelect").value)]);
-   scored.sort(function(a,b){return a[1]-b[1]});
-   var recent=new Set(session.recentIds||[]);
-   var candidates=scored.map(function(x){return x[0]}).filter(function(x){return !recent.has(x.id)});
-   if(!candidates.length)candidates=scored.map(function(x){return x[0]});
-   var weakCount=Math.min(session.pool.length,Math.max(3,Math.ceil(session.pool.length*.5)));
-   var weakIds=new Set(scored.slice(0,weakCount).map(function(x){return x[0].id}));
-   var weakCandidates=candidates.filter(function(x){return weakIds.has(x.id)});
-   v=(Math.random()<.70&&weakCandidates.length?weakCandidates:candidates);
-   v=v[Math.floor(Math.random()*v.length)]
-  }else{
-   var ord=await orderPool(session.pool,$("orderSelect").value,$("directionSelect").value),recentSet=new Set(session.recentIds||[]);
-   v=ord.find(function(x){return !recentSet.has(x.id)})||ord.find(function(x){return x.id!==session.lastId})||ord[0]
-  }
- }
+ if(!v){finishRound();return}
  session.current=v;session.currentDirection=chooseDirection();session.lastId=v.id;
- session.recentIds=(session.recentIds||[]).concat([v.id]).slice(-4);
  await renderCurrent()
 }
-async function continueWeak(){
- session.awaitingChoice=false;$("roundCompletePanel").hidden=true;await chooseNext()
+function finishRound(){
+ session.active=false;session.current=null;
+ clearTimeout(autoTimer);clearTimeout(correctDetectTimer);
+ $("trainerExercise").hidden=true;
+ $("roundCompletePanel").hidden=false;
+ var total=session.pool.length,quote=session.attempts?Math.round(session.correct/session.attempts*100):0;
+ $("roundCompleteText").textContent="Runde beendet · "+total+" Vokabeln · "+quote+" % richtig";
+ $("progressFill").style.width="100%";
+ document.documentElement.lang="de"
+}
+function startAnotherRound(){
+ $("roundCompletePanel").hidden=true;showView("learn")
 }
 function endSession(){
- session.active=false;session.awaitingChoice=false;$("roundCompletePanel").hidden=true;
- $("prompt").textContent="Session beendet.";$("answer").value="";$("feedback").className="feedback";$("feedback").textContent="Du kannst eine neue Session starten.";document.documentElement.lang="de";showView("home")
+ session.active=false;$("roundCompletePanel").hidden=true;$("trainerExercise").hidden=false;
+ document.documentElement.lang="de";showView("home")
 }
+
 async function renderCurrent(){
  var v=session.current;if(!v)return;
- var p=await gp(v.id),d=session.currentDirection,fr=d==="DE_FR";
+ var d=session.currentDirection,fr=d==="DE_FR";
  session.currentResolved=false;session.lastResult=null;
  $("nearMissActions").hidden=true;
  clearTimeout(correctDetectTimer);
  $("check").textContent="Prüfen";
  $("prompt").textContent=fr?v.meanings.join(" / "):v.foreign;
  $("directionLabel").textContent=fr?"Deutsch → Französisch":"Französisch → Deutsch";
- $("languageHint").textContent=fr?"Antwort auf Französisch.":"Antwort auf Deutsch.";
  $("answer").lang=fr?"fr-FR":"de-DE";
  $("answer").setAttribute("lang",fr?"fr-FR":"de-DE");
  document.documentElement.lang=fr?"fr":"de";
- $("writingLanguage").textContent=fr?"✎ Schreibsprache: Französisch":"✎ Schreibsprache: Deutsch";
  $("answer").value="";
- $("feedback").className="feedback";
- $("feedback").textContent=$("sessionTypeSelect").value==="test"?"Test: Antwort schreiben und Return drücken.":"Schreiben – bei exakt richtiger Antwort geht es automatisch weiter.";
- $("currentLevel").textContent="Lernstufe "+(fr?p.deFr:p.frDe);
+ $("feedback").className="feedback compact-feedback";
+ $("feedback").textContent="";
  $("trainerScope").textContent=session.sourceLabel||currentScopeText();
  updateSessionBadges();keepFocus()
 }
 function updateSessionBadges(){
- var seen=Object.keys(session.seen).length,total=session.pool.length,quote=session.attempts?Math.round(session.correct/session.attempts*100):0;
- $("sessionCoverage").textContent=seen+" / "+total+" verschiedene gesehen";
- $("sessionScore").textContent="Session: "+session.attempts+" Abfragen · "+session.correct+" richtig";
- $("bigProgress").textContent=seen+" / "+total;
+ var done=Object.keys(session.seen).length,total=session.pool.length,quote=session.attempts?Math.round(session.correct/session.attempts*100):0;
+ $("bigProgress").textContent=done+" / "+total;
  $("bigQuote").textContent=session.attempts?quote+" %":"–";
- $("bigAttempts").textContent=session.attempts;
- $("progressFill").style.width=(total?Math.min(100,seen/total*100):0)+"%"
+ $("progressFill").style.width=(total?Math.min(100,done/total*100):0)+"%"
 }
 function keepFocus(){setTimeout(function(){if(!$("trainerView").hidden&&session.active&&!session.awaitingChoice){try{$("answer").focus({preventScroll:true})}catch(e){$("answer").focus()}}},30)}
 function nextDue(level){
@@ -488,13 +559,8 @@ async function checkAnswer(){
  session.attempts++;if(result.kind==="correct"){session.correct++}
  session.seen[v.id]=true;session.currentResolved=true;
  session.testResults.push({id:v.id,kind:result.kind,direction:d,prompt:d==="DE_FR"?v.meanings.join(" / "):v.foreign,expected:expected});
- updateSessionBadges();$("currentLevel").textContent="Lernstufe "+(d==="DE_FR"?p.deFr:p.frDe);
+ updateSessionBadges();
 
- if($("sessionTypeSelect").value==="test"){
-  $("nearMissActions").hidden=true;
-  fb.className="feedback";fb.textContent="Antwort gespeichert.";
-  $("answer").value="";clearTimeout(autoTimer);autoTimer=setTimeout(function(){chooseNext()},250);return
- }
 
  $("nearMissActions").hidden=!(result.kind==="almost"&&result.canOverride);
  if(result.kind==="correct"){fb.className="feedback good";fb.innerHTML="✓ Richtig: <strong>"+escapeHtml(expected)+"</strong>"}
@@ -541,7 +607,6 @@ async function markCurrentKnown(){
  $("nearMissActions").hidden=true;
  $("feedback").className="feedback good";
  $("feedback").innerHTML="✓ Als richtig übernommen.";
- $("currentLevel").textContent="Lernstufe "+(d==="DE_FR"?p.deFr:p.frDe);
  updateSessionBadges();
 
  if($("autoNext").checked){
@@ -566,7 +631,6 @@ async function skipCurrent(){
 }
 async function revealCurrent(){
  $("nearMissActions").hidden=true;
- if($("sessionTypeSelect").value==="test")return;
  if(!session.active||!session.current||session.awaitingChoice)return;
  var v=session.current,d=session.currentDirection;
  $("feedback").className="feedback almost";
@@ -576,22 +640,6 @@ async function revealCurrent(){
  }
  $("check").textContent="Weiter";keepFocus()
 }
-function finishTest(){
- var total=session.testResults.length,ok=session.testResults.filter(function(x){return x.kind==="correct"}).length;
- var errors=session.testResults.filter(function(x){return x.kind!=="correct"});
- var html="<strong>Test beendet:</strong> "+ok+" von "+total+" richtig ("+(total?Math.round(ok/total*100):0)+" %).";
- if(errors.length){
-  html+="<ol class='test-errors'>"+errors.map(function(x){return"<li>"+escapeHtml(x.prompt)+" → <strong>"+escapeHtml(x.expected)+"</strong></li>"}).join("")+"</ol>";
-  html+="<button type='button' id='retryTestErrors'>Diese "+errors.length+" Fehler jetzt üben</button>"
- }
- $("feedback").className="feedback";$("feedback").innerHTML=html;
- session.active=false;$("prompt").textContent="Test abgeschlossen";$("answer").value="";$("showAnswer").hidden=false;
- var b=$("retryTestErrors");if(b)b.onclick=function(){
-  var ids=Array.from(new Set(errors.map(function(x){return x.id}))),pool=ids.map(function(id){return vocab.find(function(v){return v.id===id})}).filter(Boolean);
-  startCustomSession(pool,"Fehler aus dem Test")
- }
-}
-
 function showView(name){
  var views=["home","learn","trainer","plan","overview","vocab","data"];
  views.forEach(function(x){$(x+"View").hidden=x!==name});
@@ -635,22 +683,10 @@ async function renderHome(){
   var days=Math.max(0,Math.ceil((new Date(e.date+"T12:00:00")-new Date())/86400000));
   $("homeExamText").textContent="Klassenarbeit in "+days+" Tag"+(days===1?"":"en")+" · Lernpensum planen"
  }else $("homeExamText").textContent="Stoff und Lernpensum planen";
- $("appStatus").textContent="✓ Version 4.2 läuft · "+(cid?courseName(cid)+" · "+all.length+" Vokabeln":"noch keine Vokabeln importiert")
+ $("appStatus").textContent="✓ Version 4.3 läuft · "+(cid?courseName(cid)+" · "+all.length+" Vokabeln":"noch keine Vokabeln importiert")
 }
 async function switchActiveCourse(id){
  setActiveCourse(id);saveSettings();populateAllSelectors();updateCourseLabels();await renderHome()
-}
-async function startHomeDueSession(){
- var all=vocab.filter(function(v){return v.courseId===activeCourseId()}),focus=[];
- for(var i=0;i<all.length;i++){
-  var p=await gp(all[i].id);
-  if(p.attempts===0||isDue(p)||Math.min(p.deFr,p.frDe)<=1)focus.push(all[i])
- }
- if(!focus.length){alert("Heute sind keine neuen, fälligen oder schwachen Vokabeln vorhanden.");return}
- focus=await priorityPool(focus);
- var s=loadSavedSettings(),count=Math.max(1,parseInt(s.distinctCount,10)||20);
- focus=focus.slice(0,Math.min(count,focus.length));
- await startCustomSession(focus,"Heute lernen")
 }
 function fmtDate(iso){if(!iso)return"–";try{return new Intl.DateTimeFormat("de-DE",{day:"2-digit",month:"2-digit",year:"2-digit"}).format(new Date(iso))}catch(e){return"–"}}
 
@@ -694,25 +730,21 @@ async function renderVocab(){
   var row=document.createElement("div");row.className="vocab-item";
   var btn=document.createElement("button");btn.type="button";btn.className="vocab-hit";
   btn.innerHTML="<span class='vocab-hit-main'><strong>"+escapeHtml(v.foreign)+"</strong><span>"+escapeHtml(v.meanings.join(" / "))+
-   "</span><span class='muted'>"+escapeHtml(unitLabel(unitGroup(v.unitId))+" · "+partLabel(partGroup(v.unitId)))+
+   "</span><span class='muted'>"+escapeHtml(unitLabel(unitGroup(v))+" · "+partLabel(partGroup(v)))+
    "</span></span><span class='vocab-hit-arrow'>›</span>";
   btn.onclick=function(){editVocab(v.id)};row.appendChild(btn);box.appendChild(row)
  });
  if(matches.length>200){var note=document.createElement("div");note.className="small";note.textContent="Es werden die ersten 200 Treffer angezeigt. Suche genauer.";box.appendChild(note)}
 }
-function unitIdFromSelection(unit,part){
- if(/^module-[a-d]$/.test(unit))return unit;
- if(part==="alle"||!part)part="auftakt";
- return unit+"-"+part
-}
+function unitIdFromSelection(unit,part){return unit}
 function populateEditParts(){
  var unit=$("editUnit").value;populatePart($("editPart"),activeCourseId(),unit,false);
- if(/^module-[a-d]$/.test(unit))$("editPartLabel").hidden=true;
+ if(/^module-[a-z]$/.test(unit))$("editPartLabel").hidden=true;
  else{$("editPartLabel").hidden=false;if(!$("editPart").value&&$("editPart").options.length)$("editPart").selectedIndex=0}
  updateEditLocation()
 }
 function updateEditLocation(){
- var unit=$("editUnit").value,part=/^module-[a-d]$/.test(unit)?"gesamtes Modul":partLabel($("editPart").value);
+ var unit=$("editUnit").value,part=/^module-[a-z]$/.test(unit)?"gesamtes Modul":partLabel($("editPart").value);
  $("editLocation").textContent="Ablage: "+unitLabel(unit)+" · "+part
 }
 function newVocab(){
@@ -724,8 +756,8 @@ function newVocab(){
 function editVocab(id){
  var v=vocab.find(function(x){return x.id===id});if(!v)return;
  $("editTitle").textContent="Vokabel bearbeiten";$("editId").value=v.id;$("editForeign").value=v.foreign;$("editMeanings").value=v.meanings.join("; ");
- populateUnit($("editUnit"),activeCourseId(),false);var ug=unitGroup(v.unitId);$("editUnit").value=ug;populateEditParts();
- if(!/^module-[a-d]$/.test(ug)){var pg=partGroup(v.unitId);if([].slice.call($("editPart").options).some(function(o){return o.value===pg}))$("editPart").value=pg}
+ populateUnit($("editUnit"),activeCourseId(),false);var ug=unitGroup(v);$("editUnit").value=ug;populateEditParts();
+ if(!/^module-[a-z]$/.test(ug)){var pg=partGroup(v);if([].slice.call($("editPart").options).some(function(o){return o.value===pg}))$("editPart").value=pg}
  updateEditLocation();$("deleteVocab").hidden=false;$("editModal").hidden=false;setTimeout(function(){$("editForeign").focus()},30)
 }
 function closeEditModal(){$("editModal").hidden=true}
@@ -734,7 +766,10 @@ async function saveEdit(){
  if(!foreign||!meanings.length){alert("Bitte sowohl Französisch als auch mindestens eine deutsche Bedeutung eintragen.");return}
  var existing=id?vocab.find(function(x){return x.id===id}):null;
  var v=existing||{id:"manual-"+Date.now()+"-"+Math.random().toString(36).slice(2,7),courseId:activeCourseId(),userCreated:true};
- v.foreign=foreign;v.meanings=meanings;v.courseId=activeCourseId();v.unitId=unitIdFromSelection($("editUnit").value,$("editPart").value);
+ v.foreign=foreign;v.meanings=meanings;v.courseId=activeCourseId();
+ var selectedUnit=$("editUnit").value;
+ v.unitId=selectedUnit;
+ v.part=/^module-[a-z]$/.test(selectedUnit)?"alle":(selectedUnit==="unite-0"?"auftakt":$("editPart").value||"sonstiges");
  v.userEdited=true;v.userEditedAt=new Date().toISOString();
  await reqP(os(S_VOCAB,"readwrite").put(v));await reload();populateAllSelectors();closeEditModal();await renderVocab()
 }
@@ -749,7 +784,7 @@ async function deleteVocab(){
 function scopeCatalog(){
  var out=[],units=unitsForCourse(activeCourseId());
  units.forEach(function(u){
-  if(/^module-[a-d]$/.test(u))out.push({key:u+"|alle",unit:u,part:"alle",label:unitLabel(u)});
+  if(/^module-[a-z]$/.test(u))out.push({key:u+"|alle",unit:u,part:"alle",label:unitLabel(u)});
   else partsFor(activeCourseId(),u).forEach(function(p){out.push({key:u+"|"+p,unit:u,part:p,label:unitLabel(u)+" · "+partLabel(p)})})
  });
  return out
@@ -839,37 +874,85 @@ function isFullBackup(data){
 async function importVocabularyFile(file){
  var data=await parseJsonFile(file);
  if(isFullBackup(data))throw new Error("Das ist ein komplettes Backup. Bitte unten „Backup wiederherstellen“ verwenden.");
- var entries=Array.isArray(data)?data:data.entries;
- if(!Array.isArray(entries))throw new Error("Keine Vokabelliste gefunden. Erwartet wird ein Array oder ein Objekt mit „entries“.");
+ if(!data||Array.isArray(data)||!data.course||!data.course.id)throw new Error("Kursangabe fehlt. Jede Vokabeldatei muss course.id enthalten, z. B. „franzoesisch-6“.");
+ var entries=data.entries;
+ if(!Array.isArray(entries))throw new Error("Keine Vokabelliste gefunden. Erwartet wird ein Objekt mit „course“ und „entries“.");
  if(!entries.length)throw new Error("Die Vokabeldatei enthält 0 Einträge.");
- var importedCourse=(data&&data.course&&data.course.id)?String(data.course.id):(activeCourseId()||"franzoesisch");
+
+ var importedCourse=String(data.course.id).trim(),courseLabel=String(data.course.label||data.course.name||importedCourse).trim();
+ if(!importedCourse)throw new Error("course.id darf nicht leer sein.");
+ if(!courseLabel)throw new Error("Der sichtbare Kursname fehlt.");
+
+ var existingCourse=courses.find(function(c){return c.id===importedCourse});
+ if(existingCourse){
+  var existingName=String(existingCourse.label||existingCourse.name||existingCourse.id);
+  if(norm(existingName)!==norm(courseLabel)){
+   throw new Error('Kurs-ID "'+importedCourse+'" existiert bereits als "'+existingName+'". Import abgebrochen, damit keine Kurse vermischt werden.')
+  }
+ }
+
+ if(!confirm(entries.length+" Vokabeln → "+courseLabel+" importieren?"))return;
+
  var unitNames=new Map();
- if(data&&Array.isArray(data.units))data.units.forEach(function(u){if(u&&u.id)unitNames.set(String(u.id),u.name||u.label||String(u.id))});
+ if(Array.isArray(data.units))data.units.forEach(function(u){if(u&&u.id)unitNames.set(String(u.id),u.name||u.label||String(u.id))});
  var existing=new Map(vocab.map(function(v){return[v.id,v]})),added=0,skipped=0,invalid=0,generatedIds=0,enriched=0;
- function makeId(e,index){
-  var raw=(importedCourse+"-"+(e.unitId||"bereich")+"-"+(e.foreign||"vokabel")).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"")
-   .replace(/[’'`´]/g,"-").replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"").slice(0,90);
+
+ function canonicalLocation(e){
+  var original=String(e.unitId||""),unit=original,part=e.part||null,section=e.sectionName||e.unitName||unitNames.get(original)||null;
+
+  // Legacy-Datei Französisch 6, Buchseiten 176–178: Auftakt vor Unité 1.
+  if(importedCourse==="franzoesisch-6" && (/^p17[678]-/.test(original)||(Number(e.page)>=176&&Number(e.page)<=178))){
+   return{unitId:"unite-0",part:"auftakt",sectionName:section||original}
+  }
+
+  var old=original.match(/^(unite-\d+)-(auftakt|vocabulaire-thematique|volet-1|volet-2)$/);
+  if(old){unit=old[1];part=part||old[2]}
+
+  if(/^module-[a-z]$/.test(unit))part="alle";
+  if(/^unite-\d+$/.test(unit)&&!part)part="sonstiges";
+  return{unitId:unit,part:part||"sonstiges",sectionName:section}
+ }
+ function makeId(e,loc,index){
+  var raw=(importedCourse+"-"+loc.unitId+"-"+loc.part+"-"+(e.foreign||"vokabel")).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+   .replace(/[’'`´]/g,"-").replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"").slice(0,100);
   if(!raw)raw=importedCourse+"-vokabel-"+index;var id=raw,n=2;while(existing.has(id)){id=raw+"-"+n;n++}return id
  }
+
  for(var i=0;i<entries.length;i++){
-  var e=entries[i];if(!e||!e.foreign||!e.unitId){invalid++;continue}
+  var e=entries[i];
+  if(!e||!e.foreign||!e.unitId){invalid++;continue}
   var meanings=Array.isArray(e.meanings)?e.meanings:(e.meaning?[e.meaning]:[]);
-  meanings=meanings.map(function(x){return String(x).trim()}).filter(Boolean);if(!meanings.length){invalid++;continue}
-  var id=e.id?String(e.id):makeId(e,i+1);if(!e.id)generatedIds++;
+  meanings=meanings.map(function(x){return String(x).trim()}).filter(Boolean);
+  if(!meanings.length){invalid++;continue}
+
+  var loc=canonicalLocation(e);
+  if(!/^unite-\d+$/.test(loc.unitId)&&!/^module-[a-z]$/.test(loc.unitId)){invalid++;continue}
+
+  var id=e.id?String(e.id):makeId(e,loc,i+1);if(!e.id)generatedIds++;
   if(existing.has(id)){
-   var old=existing.get(id);
-   if(old.courseId===importedCourse&&!old.unitName&&unitNames.has(String(e.unitId))){old.unitName=unitNames.get(String(e.unitId));await reqP(os(S_VOCAB,"readwrite").put(old));enriched++}
+   var oldv=existing.get(id);
+   if(oldv.courseId===importedCourse){
+    var dirty=false;
+    if(!oldv.sectionName&&loc.sectionName){oldv.sectionName=loc.sectionName;dirty=true}
+    if(dirty){await reqP(os(S_VOCAB,"readwrite").put(oldv));enriched++}
+   }
    skipped++;continue
   }
-  var v=Object.assign({},e,{id:id,courseId:importedCourse,foreign:String(e.foreign).trim(),meanings:meanings,unitName:unitNames.get(String(e.unitId))||e.unitName||null,importedAt:new Date().toISOString()});
+
+  var v=Object.assign({},e,{
+   id:id,courseId:importedCourse,unitId:loc.unitId,part:loc.part,sectionName:loc.sectionName,
+   foreign:String(e.foreign).trim(),meanings:meanings,importedAt:new Date().toISOString()
+  });
+  delete v.unitName;
   await reqP(os(S_VOCAB,"readwrite").put(v));existing.set(id,v);added++
  }
- if(data&&data.course){
-  var c=Object.assign({},data.course);c.id=importedCourse;if(!c.label)c.label=c.name||importedCourse;await reqP(os(S_COURSES,"readwrite").put(c))
- }else await reqP(os(S_COURSES,"readwrite").put({id:importedCourse,name:importedCourse,label:importedCourse,learningLocale:"fr-FR",nativeLocale:"de-DE"}));
+
+ var c=Object.assign({},data.course,{id:importedCourse,name:data.course.name||courseLabel,label:courseLabel});
+ await reqP(os(S_COURSES,"readwrite").put(c));
+
  await reload();setActiveCourse(importedCourse);populateCourseSelector();populateAllSelectors();updateCourseLabels();saveSettings();
- $("vocabImportResult").textContent=added+" neue Vokabeln hinzugefügt · "+skipped+" bereits vorhandene unverändert · "+invalid+" ungültige übersprungen"+
-  (generatedIds?" · "+generatedIds+" IDs automatisch erzeugt":"")+(enriched?" · "+enriched+" Bereichsnamen ergänzt":"")+". Aktiver Kurs: "+courseName(importedCourse)+".";
+ $("vocabImportResult").textContent=added+" neue Vokabeln → "+courseLabel+" · "+skipped+" bereits vorhanden · "+invalid+" ungültig"+
+  (generatedIds?" · "+generatedIds+" IDs automatisch erzeugt":"")+(enriched?" · "+enriched+" Metadaten ergänzt":"")+".";
  await renderHome();await renderOverview()
 }
 async function restoreBackupFile(file){
@@ -940,12 +1023,12 @@ $("answer").addEventListener("blur",function(){
 });
 ["check","showAnswer","markKnown","continueWeak","endSession"].forEach(preserveAnswerFocusOnButton);
 
-$("startSession").onclick=startSession;
-$("startDue").onclick=startDueSession;
+$("startNew").onclick=startNewSession;
+$("startWeak").onclick=startWeakSession;
 $("check").onclick=checkAnswer;
 $("showAnswer").onclick=revealCurrent;
 $("markKnown").onclick=markCurrentKnown;
-$("continueWeak").onclick=continueWeak;
+$("newRound").onclick=startAnotherRound;
 $("endSession").onclick=endSession;
 
 $("tabHome").onclick=function(){showView("home")};
@@ -956,7 +1039,7 @@ $("tabVocab").onclick=function(){showView("vocab")};
 $("tabData").onclick=function(){showView("data")};
 $("activeCourseSelect").onchange=function(){switchActiveCourse(this.value)};
 $("homeLearn").onclick=function(){showView("learn")};
-$("homeDueLearn").onclick=startHomeDueSession;
+$("homeDueLearn").onclick=function(){showView("learn")};
 $("homePlan").onclick=function(){showView("plan")};
 $("homeVocab").onclick=function(){showView("vocab")};
 $("homeOverview").onclick=function(){showView("overview")};
@@ -996,7 +1079,7 @@ $("backupRestoreFile").onchange=async function(e){
  e.target.value=""
 };
 
-["orderSelect","directionSelect","sessionTypeSelect","distinctCount","adaptiveAfterFirst","autoNext","autoDetectCorrect"].forEach(function(id){
+["orderSelect","directionSelect","distinctCount","autoNext","autoDetectCorrect"].forEach(function(id){
  $(id).addEventListener("change",saveSettings)
 });
 

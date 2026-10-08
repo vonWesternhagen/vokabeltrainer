@@ -7,8 +7,8 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Vokabeltrainer">
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="stylesheet" href="styles.css?v=42">
-  <title>Vokabeltrainer – Version 4.2</title>
+  <link rel="stylesheet" href="styles.css?v=43">
+  <title>Vokabeltrainer – Version 4.3</title>
 </head>
 <body>
 <main>
@@ -18,7 +18,7 @@
       <p class="sub">Schritt für Schritt sicherer werden · mit deinem eigenen Lerntempo</p>
       <p class="header-note">Wähle deinen Lernweg, übe gezielt und sieh sofort, was schon sicher sitzt.</p>
     </div>
-    <div class="header-badges"><span class="course-badge" id="activeCourseBadge">Noch kein Kurs</span><span class="version">v4.2</span></div>
+    <div class="header-badges"><span class="course-badge" id="activeCourseBadge">Noch kein Kurs</span><span class="version">v4.3</span></div>
   </header>
 
   <div id="appStatus" class="status">JavaScript startet …</div>
@@ -57,8 +57,8 @@
         <span>Stoff auswählen und eine neue Lernrunde starten</span>
       </button>
       <button id="homeDueLearn" class="home-action" type="button">
-        <span class="home-icon">↻</span><strong>Heute lernen</strong>
-        <span>Direkt mit den Vokabeln weitermachen, die heute wichtig sind</span>
+        <span class="home-icon">↻</span><strong>Gezielt lernen</strong>
+        <span>Neue oder schlecht gekonnte Vokabeln auswählen</span>
       </button>
       <button id="homePlan" class="home-action" type="button">
         <span class="home-icon">□</span><strong>Klassenarbeit</strong>
@@ -80,142 +80,105 @@
   </section>
 
   <section id="learnView" hidden>
-    <section class="card">
+    <section class="card learn-setup-card">
       <div class="breadcrumb">Lernrunde vorbereiten</div>
-      <h2>Wie möchtest du heute lernen?</h2>
-      <p class="section-intro">Wähle Bereich, Richtung und Umfang. Danach öffnet sich die ruhige Schreibansicht.</p>
-      <div class="form-grid">
+      <h2>Was möchtest du lernen?</h2>
+
+      <div class="form-grid learn-options">
         <label>Unité / Modul
           <select id="unitSelect"></select>
         </label>
         <label>Teilbereich
           <select id="partSelect"></select>
         </label>
-        <label>Reihenfolge der ersten Runde
+        <label>Reihenfolge
           <select id="orderSelect">
+            <option value="random" selected>zufällig</option>
             <option value="forward">von Anfang bis Ende</option>
             <option value="reverse">rückwärts</option>
-            <option value="random">zufällig</option>
             <option value="weakest">schlechteste zuerst</option>
           </select>
         </label>
         <label>Abfragerichtung
           <select id="directionSelect">
-            <option value="DE_FR">Deutsch → Fremdsprache</option>
-            <option value="FR_DE">Fremdsprache → Deutsch</option>
+            <option value="DE_FR">Deutsch → Französisch</option>
+            <option value="FR_DE">Französisch → Deutsch</option>
             <option value="MIXED">gemischt</option>
           </select>
         </label>
-        <label>Lernart
-          <select id="sessionTypeSelect">
-            <option value="learn">Lernen</option>
-            <option value="test">Test</option>
-          </select>
-        </label>
-        <label>Anzahl verschiedener Vokabeln
-          <input id="distinctCount" type="number" min="1" step="1" value="20" inputmode="numeric">
+        <label>Anzahl Vokabeln
+          <input id="distinctCount" type="number" min="1" step="1" value="10" inputmode="numeric">
         </label>
       </div>
-      <label class="auto-row">
-        <input type="checkbox" id="adaptiveAfterFirst" checked>
-        Nach der ersten vollständigen Runde automatisch die schlechtesten Vokabeln priorisieren
-      </label>
-      <p class="small">
-        Die Zahl legt fest, wie viele <strong>verschiedene</strong> Vokabeln die Session enthält.
-        Im Lernmodus wird jede davon zuerst einmal abgefragt; danach werden schwächere Vokabeln häufiger,
-        aber mit genügend Abwechslung wiederholt. Im Testmodus endet die Session nach genau dieser ersten Runde.
-      </p>
-      <div class="buttons">
-        <button id="startSession" type="button">Session starten / neu starten</button>
-        <button id="startDue" type="button" class="secondary">Heute fällige / schwache lernen</button>
+
+      <input id="sessionTypeSelect" type="hidden" value="learn">
+
+      <div class="learn-mode-buttons">
+        <button id="startNew" type="button" class="learn-mode-card">
+          <strong>Neue Vokabeln lernen</strong>
+          <span>Noch nie abgefragte Vokabeln zuerst; fehlende Plätze werden mit schwierigen Vokabeln aufgefüllt.</span>
+        </button>
+        <button id="startWeak" type="button" class="learn-mode-card weak-mode">
+          <strong>Schlecht gekonnte Vokabeln lernen</strong>
+          <span>Die schwierigsten bereits geübten Vokabeln aus deiner Auswahl.</span>
+        </button>
       </div>
       <p class="small" id="scopeInfo"></p>
     </section>
-
   </section>
 
   <section id="trainerView" hidden>
-    <section class="trainer-shell">
-      <div class="trainer-toolbar">
+    <section class="trainer-shell compact-trainer">
+      <div class="trainer-compact-top">
         <button id="leaveTrainer" type="button" class="secondary compact-button">← Beenden</button>
-        <div id="trainerScope" class="trainer-scope">Französisch 10</div>
-        <div id="writingLanguage" class="language-chip">✎ Schreibsprache: Französisch</div>
-      </div>
-
-      <div class="trainer-metrics">
-        <div class="trainer-metric">
+        <div class="trainer-scope-wrap">
+          <div id="trainerScope" class="trainer-scope">Lernrunde</div>
+          <span id="directionLabel" class="direction-mini">Deutsch → Französisch</span>
+        </div>
+        <div class="trainer-quick-stats">
           <strong id="bigProgress">0 / 0</strong>
-          <span>verschiedene</span>
-        </div>
-        <div class="trainer-metric">
-          <strong id="bigQuote">–</strong>
-          <span>richtig</span>
-        </div>
-        <div class="trainer-metric">
-          <strong id="bigAttempts">0</strong>
-          <span>Abfragen</span>
-        </div>
-      </div>
-      <div class="progress-track"><div id="progressFill" class="progress-fill"></div></div>
-
-      <div class="trainer-status-row">
-        <span class="badge" id="sessionCoverage">0 / 0 verschiedene gesehen</span>
-        <span class="badge" id="currentLevel">Lernstufe 0</span>
-        <span class="badge" id="sessionScore">Session: 0 Abfragen</span>
-      </div>
-
-      <div class="direction-row">
-        <div>
-          <div class="label" id="directionLabel">Deutsch → Französisch</div>
-          <div id="languageHint" class="language-hint">Französisch schreiben.</div>
+          <span id="bigQuote">–</span>
         </div>
       </div>
 
-      <div class="prompt trainer-prompt" id="prompt">Bitte Session starten.</div>
+      <div class="progress-track compact-progress"><div id="progressFill" class="progress-fill"></div></div>
 
-      <label for="answer" class="answer-label">Antwort</label>
-      <textarea id="answer" class="trainer-answer" lang="fr-FR" inputmode="text" enterkeyhint="done"
-        autocomplete="off" autocapitalize="none" spellcheck="false"
-        placeholder="Mit Apple Pencil schreiben …"></textarea>
+      <div id="trainerExercise" class="trainer-exercise">
+        <div class="prompt trainer-prompt compact-prompt" id="prompt">Bitte Lernrunde starten.</div>
 
-      <div class="workflow-hint">
-        <strong>Ohne Finger:</strong> Eine exakt richtige Antwort wird nach kurzer Schreibpause automatisch erkannt.
-        Die Return-Taste prüft; nach einem Fehler führt Return zur nächsten Vokabel.
+        <textarea id="answer" class="trainer-answer compact-answer" lang="fr-FR" inputmode="text" enterkeyhint="done"
+          autocomplete="off" autocapitalize="none" spellcheck="false"
+          placeholder="Antwort schreiben …"></textarea>
+
+        <div class="trainer-actions compact-actions">
+          <button type="button" id="check" class="big-check">Prüfen</button>
+          <button type="button" id="showAnswer" class="secondary">Weiß ich nicht</button>
+        </div>
+
+        <div class="compact-options">
+          <label class="auto-row compact-toggle">
+            <input type="checkbox" id="autoDetectCorrect" checked>
+            Nach Schreibpause erkennen
+          </label>
+          <label class="auto-row compact-toggle">
+            <input type="checkbox" id="autoNext" checked>
+            Automatisch weiter
+          </label>
+        </div>
+
+        <div id="feedback" class="feedback compact-feedback">Noch keine Antwort geprüft.</div>
+        <div id="nearMissActions" class="near-miss-actions" hidden>
+          <button type="button" id="markKnown" class="known-button">✓ Habe ich gewusst</button>
+        </div>
       </div>
 
-      <div class="trainer-actions">
-        <button type="button" id="check" class="big-check">Prüfen</button>
-        <button type="button" id="showAnswer" class="secondary">Weiß ich nicht / Antwort zeigen</button>
-      </div>
-
-      <label class="auto-row">
-        <input type="checkbox" id="autoDetectCorrect" checked>
-        Exakt richtige Antworten nach kurzer Schreibpause automatisch erkennen
-      </label>
-      <label class="auto-row">
-        <input type="checkbox" id="autoNext" checked>
-        Nach richtiger Antwort automatisch weiter
-      </label>
-
-      <div id="feedback" class="feedback">Noch keine Antwort geprüft.</div>
-      <div id="nearMissActions" class="near-miss-actions" hidden>
-        <button type="button" id="markKnown" class="known-button">✓ Habe ich gewusst</button>
-        <span class="small">Nur bei kleinen Abweichungen verfügbar.</span>
-      </div>
-
-      <div id="roundCompletePanel" class="round-complete" hidden>
-        <strong id="roundCompleteText">Erste Runde abgeschlossen.</strong>
+      <div id="roundCompletePanel" class="round-complete compact-round-complete" hidden>
+        <strong id="roundCompleteText">Runde beendet.</strong>
         <div class="buttons">
-          <button id="continueWeak" type="button">Schwächen weiterüben</button>
-          <button id="endSession" type="button" class="secondary">Session beenden</button>
+          <button id="newRound" type="button">Neue Runde starten</button>
+          <button id="endSession" type="button" class="secondary">Zur Startseite</button>
         </div>
       </div>
-
-      <p class="small note">
-        Satzzeichen, Leerzeichen und Akzentzeichen werden bei der Korrektur tolerant behandelt.
-        Bei kleinen Tipp- oder Erkennungsfehlern kannst du „Habe ich gewusst“ wählen.
-        iPadOS entscheidet die tatsächliche Scribble-Sprache weiterhin anhand der aktiven Tastatursprache.
-      </p>
     </section>
   </section>
 
@@ -337,7 +300,7 @@
     <section class="card">
       <div class="breadcrumb">Daten</div><h2>Neue Vokabeln additiv einlesen</h2>
       <p class="small">
-        Dieser Import fügt <strong>nur neue Vokabeln</strong> hinzu. Die Datei darf eine Vokabelliste mit oder ohne eigene IDs enthalten. Bereits vorhandene IDs werden nicht verändert.
+        Dieser Import fügt <strong>nur neue Vokabeln</strong> hinzu. Jede Datei muss eindeutig angeben, zu welchem Kurs sie gehört (z. B. Französisch 6). Bereits vorhandene IDs werden nicht verändert.
         Damit bleiben manuelle Korrekturen und Verschiebungen erhalten. Lernstände werden hier niemals importiert oder überschrieben.
       </p>
       <div class="buttons">
@@ -375,6 +338,6 @@
     </section>
   </section>
 </main>
-<script src="app.js?v=42"></script>
+<script src="app.js?v=43"></script>
 </body>
 </html>
