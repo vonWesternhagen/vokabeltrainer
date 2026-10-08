@@ -1,24 +1,22 @@
-Vokabeltrainer 3.4
+Vokabeltrainer 3.5
 
 Neu:
-- Feld "Anzahl verschiedener Vokabeln" (Standard: 20).
-- Bei 20 werden genau 20 verschiedene Vokabeln für die Session ausgewählt.
-- Erste Runde: jede dieser Vokabeln garantiert genau einmal.
-- Testmodus endet nach dieser ersten Runde.
-- Lernmodus: danach adaptive Wiederholung.
-- Adaptive Wiederholung wurde korrigiert: nicht mehr nur aus den 5 schlechtesten.
-  70 % Schwerpunkt auf der schwächeren Hälfte, 30 % auf dem übrigen Session-Pool.
-  Die letzten 4 Vokabeln werden nach Möglichkeit nicht sofort wiederholt.
-- Zähler zeigt nun verschiedene Vokabeln und Gesamtzahl der Abfragen getrennt.
-- Aktueller Kurs wird sichtbar/intern als "Französisch 10" bezeichnet.
-  Die stabile courseId "franzoesisch" bleibt erhalten, damit die vorhandene JSON weiter funktioniert.
-- Export des Kurses heißt "vokabeltrainer-franzoesisch-10.json".
+- Bereich "Vokabeln bearbeiten" jetzt suchzentriert:
+  * Suchfeld durchsucht Französisch UND Deutsch gleichzeitig.
+  * Treffer erscheinen sofort darunter.
+  * Klick auf Treffer öffnet ein modales Bearbeitungsfenster.
+  * Französisch und Deutsch editierbar.
+  * Unité / Modul im Dropdown änderbar.
+  * Bei Unités zusätzlich Teilbereich (Auftakt, Vocabulaire thématique, Volet 1, Volet 2).
+  * Bei Module A-D gibt es keinen zusätzlichen Teilbereich.
+  * Verschieben erhält ID und Lernstand der Vokabel.
 
-Warum gestern wenige verschiedene Vokabeln kamen:
-Nach der ersten Runde wählte Version 3.x adaptiv nur aus den 5 schlechtesten Vokabeln.
-Das führte bei längeren Sessions zu sehr vielen Wiederholungen derselben kleinen Gruppe.
-Version 3.4 verteilt die Wiederholungen deutlich breiter.
+Zusätzlich geprüft/korrigiert:
+- "Weiter" ohne Antwort überspringt eine Vokabel nicht mehr unsichtbar, sondern markiert sie als nicht gewusst.
+- "Antwort zeigen" markiert die Vokabel ebenfalls als nicht gewusst.
+  Dadurch bleibt die Zusage korrekt, dass in der ersten Runde jede ausgewählte Vokabel erfasst wird.
+- Französisch 10 bleibt als sichtbares Kurslabel erhalten.
 
 Update:
 index.html, styles.css, app.js, manifest.webmanifest und sw.js ersetzen.
-Danach mit ?v=34 öffnen.
+Danach mit ?v=35 öffnen.

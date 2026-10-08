@@ -323,21 +323,127 @@ async function renderOverview(){
  $("sumEntries").textContent=list.length;$("sumAttempts").textContent=t.attempts;$("sumCorrect").textContent=t.correct;$("sumWrong").textContent=t.bad
 }
 async function renderVocab(){
- var list=filtered(FIXED_COURSE_ID,$("vocabUnit").value,$("vocabPart").value),q=norm($("vocabSearch").value),box=$("vocabList");box.innerHTML="";
- list.filter(v=>!q||norm(v.foreign+" "+v.meanings.join(" ")).includes(q)).slice(0,500).forEach(v=>{
-  var d=document.createElement("div");d.className="vocab-item";d.innerHTML="<div><strong>"+escapeHtml(v.foreign)+"</strong><div>"+escapeHtml(v.meanings.join(" / "))+"</div><div class='muted'>"+escapeHtml(unitLabel(unitGroup(v.unitId))+" · "+partLabel(partGroup(v.unitId)))+"</div></div>";
-  var b=document.createElement("button");b.className="secondary";b.textContent="Bearbeiten";b.onclick=()=>editVocab(v);d.appendChild(b);box.appendChild(d)
- })
+ var q=norm($("vocabSearch").value);
+ var box=$("vocabList");
+ box.innerHTML="";
+
+ if(!q){
+   $("vocabSearchInfo").textContent="Tippe Buchstaben ein. Gesucht wird gleichzeitig in Französisch und Deutsch.";
+   return;
+ }
+
+ var matches=vocab.filter(function(v){
+   return v.courseId===FIXED_COURSE_ID &&
+     norm(v.foreign+" "+v.meanings.join(" ")).includes(q);
+ }).sort(function(a,b){
+   var af=norm(a.foreign),bf=norm(b.foreign);
+   var am=norm(a.meanings.join(" ")),bm=norm(b.meanings.join(" "));
+   var as=(af.startsWith(q)||am.startsWith(q))?0:1;
+   var bs=(bf.startsWith(q)||bm.startsWith(q))?0:1;
+   return as-bs || af.localeCompare(bf,"fr");
+ });
+
+ $("vocabSearchInfo").textContent=matches.length+" Treffer"+(matches.length===1?"":".");
+
+ matches.slice(0,200).forEach(function(v){
+   var row=document.createElement("div");
+   row.className="vocab-item";
+
+   var btn=document.createElement("button");
+   btn.type="button";
+   btn.className="vocab-hit";
+   btn.innerHTML=
+     "<span class='vocab-hit-main'><strong>"+escapeHtml(v.foreign)+"</strong>"+
+     "<span>"+escapeHtml(v.meanings.join(" / "))+"</span>"+
+     "<span class='muted'>"+escapeHtml(unitLabel(unitGroup(v.unitId))+" · "+partLabel(partGroup(v.unitId)))+"</span></span>"+
+     "<span class='vocab-hit-arrow'>›</span>";
+   btn.onclick=function(){editVocab(v.id)};
+   row.appendChild(btn);
+   box.appendChild(row);
+ });
+
+ if(matches.length>200){
+   var note=document.createElement("div");
+   note.className="small";
+   note.textContent="Es werden die ersten 200 Treffer angezeigt. Suche genauer, um die Liste einzugrenzen.";
+   box.appendChild(note);
+ }
 }
 function escapeHtml(s){return String(s).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]))}
-function editVocab(v){$("editCard").hidden=false;$("editId").value=v.id;$("editForeign").value=v.foreign;$("editMeanings").value=v.meanings.join("; ");$("editForeign").focus()}
-async function saveEdit(){var id=$("editId").value,v=vocab.find(x=>x.id===id);if(!v)return;v.foreign=$("editForeign").value.trim();v.meanings=$("editMeanings").value.split(";").map(x=>x.trim()).filter(Boolean);await reqP(os(S_VOCAB,"readwrite").put(v));await reload();$("editCard").hidden=true;renderVocab()}
-async function importJson(file){
- var data=JSON.parse(await file.text());if(!Array.isArray(data.entries))throw new Error("Kein entries-Array gefunden.");
- var c=data.course||{id:"import",name:"Import"};await reqP(os(S_COURSES,"readwrite").put({id:c.id||"import",name:(c.id==="franzoesisch"?"Französisch 10":(c.name||c.id||"Import")),learningLocale:c.learningLocale||"fr-FR",nativeLocale:c.nativeLocale||"de-DE"}));
- var tx=db.transaction(S_VOCAB,"readwrite"),s=tx.objectStore(S_VOCAB),count=0;
- data.entries.forEach(e=>{if(!e.id||!e.foreign||!Array.isArray(e.meanings)||!e.meanings.length)return;s.put({id:String(e.id),courseId:e.courseId||c.id||"import",unitId:e.unitId||data.unit?.id||"import",foreign:String(e.foreign),meanings:e.meanings.map(String)});count++});
- await new Promise((res,rej)=>{tx.oncomplete=res;tx.onerror=()=>rej(tx.error)});await reload();populateAllSelectors();$("importResult").textContent=count+" Vokabeln importiert/aktualisiert."
+
+function unitIdFromSelection(unit,part){
+ if(/^module-[a-d]$/.test(unit)) return unit;
+ if(part==="alle" || !part) part="auftakt";
+ return unit+"-"+part;
+}
+
+function populateEditParts(){
+ var unit=$("editUnit").value;
+ populatePart($("editPart"),FIXED_COURSE_ID,unit,false);
+ if(/^module-[a-d]$/.test(unit)){
+   $("editPartLabel").hidden=true;
+ }else{
+   $("editPartLabel").hidden=false;
+   if(!$("editPart").value && $("editPart").options.length) $("editPart").selectedIndex=0;
+ }
+ updateEditLocation();
+}
+
+function updateEditLocation(){
+ var unit=$("editUnit").value;
+ var part=/^module-[a-d]$/.test(unit) ? "gesamtes Modul" : partLabel($("editPart").value);
+ $("editLocation").textContent="Ablage: "+unitLabel(unit)+" · "+part;
+}
+
+function editVocab(id){
+ var v=vocab.find(function(x){return x.id===id});
+ if(!v)return;
+
+ $("editId").value=v.id;
+ $("editForeign").value=v.foreign;
+ $("editMeanings").value=v.meanings.join("; ");
+
+ populateUnit($("editUnit"),FIXED_COURSE_ID,false);
+ var ug=unitGroup(v.unitId);
+ $("editUnit").value=ug;
+ populateEditParts();
+
+ if(!/^module-[a-d]$/.test(ug)){
+   var pg=partGroup(v.unitId);
+   if([...$("editPart").options].some(function(o){return o.value===pg})) $("editPart").value=pg;
+ }
+ updateEditLocation();
+
+ $("editModal").hidden=false;
+ setTimeout(function(){$("editForeign").focus()},30);
+}
+
+function closeEditModal(){
+ $("editModal").hidden=true;
+}
+
+async function saveEdit(){
+ var id=$("editId").value;
+ var v=vocab.find(function(x){return x.id===id});
+ if(!v)return;
+
+ var foreign=$("editForeign").value.trim();
+ var meanings=$("editMeanings").value.split(";").map(function(x){return x.trim()}).filter(Boolean);
+ if(!foreign || !meanings.length){
+   alert("Bitte sowohl Französisch als auch mindestens eine deutsche Bedeutung eintragen.");
+   return;
+ }
+
+ v.foreign=foreign;
+ v.meanings=meanings;
+ v.courseId=FIXED_COURSE_ID;
+ v.unitId=unitIdFromSelection($("editUnit").value,$("editPart").value);
+
+ await reqP(os(S_VOCAB,"readwrite").put(v));
+ await reload();
+ populateAllSelectors();
+ closeEditModal();
+ await renderVocab();
 }
 async function downloadJson(data,name){var blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"}),url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000)}
 async function exportBackup(){
@@ -375,8 +481,6 @@ function populateAllSelectors(){
  populateUnit($("overviewUnit"),FIXED_COURSE_ID,true);
  populatePart($("overviewPart"),FIXED_COURSE_ID,$("overviewUnit").value,true);
 
- populateUnit($("vocabUnit"),FIXED_COURSE_ID,true);
- populatePart($("vocabPart"),FIXED_COURSE_ID,$("vocabUnit").value,true);
 }
 function bindUnitPart(unitId,partId,includeAll,afterChange){
  $(unitId).addEventListener("change",function(){
@@ -388,9 +492,45 @@ function bindUnitPart(unitId,partId,includeAll,afterChange){
  });
 }
 
-$("startSession").onclick=startSession;$("check").onclick=checkAnswer;$("next").onclick=()=>chooseNext(false);$("showAnswer").onclick=showAnswer;
+async function skipCurrent(){
+ if(!session.active||!session.current){await chooseNext(false);return}
+ var v=session.current;
+ if(!session.seen[v.id]){
+   var p=await gp(v.id);
+   p.attempts++;
+   p.wrong++;
+   p.lastPracticedAt=new Date().toISOString();
+   if(session.currentDirection==="DE_FR"){p.attemptsDEFR++;p.deFr=Math.max(0,p.deFr-1);p.dueDEFR=nextDue(0)}
+   else{p.attemptsFRDE++;p.frDe=Math.max(0,p.frDe-1);p.dueFRDE=nextDue(0)}
+   await sp(p);
+   session.attempts++;
+   session.seen[v.id]=true;
+   session.testResults.push({id:v.id,kind:"skipped"});
+   updateSessionBadges();
+ }
+ await chooseNext(false);
+}
+
+async function revealCurrent(){
+ if(!session.active||!session.current)return;
+ var v=session.current,d=session.currentDirection;
+ $("feedback").className="feedback almost";
+ $("feedback").innerHTML="Antwort: <strong>"+(d==="DE_FR"?v.foreign:v.meanings.join(" / "))+"</strong><br><span class='small'>Als nicht gewusst markiert.</span>";
+ if(!session.seen[v.id]){
+   var p=await gp(v.id);
+   p.attempts++;p.wrong++;p.lastPracticedAt=new Date().toISOString();
+   if(d==="DE_FR"){p.attemptsDEFR++;p.deFr=Math.max(0,p.deFr-1);p.dueDEFR=nextDue(0)}
+   else{p.attemptsFRDE++;p.frDe=Math.max(0,p.frDe-1);p.dueFRDE=nextDue(0)}
+   await sp(p);
+   session.attempts++;session.seen[v.id]=true;session.testResults.push({id:v.id,kind:"revealed"});
+   updateSessionBadges();
+ }
+ keepFocus();
+}
+
+$("startSession").onclick=startSession;$("check").onclick=checkAnswer;$("next").onclick=skipCurrent;$("showAnswer").onclick=revealCurrent;
 $("tabLearn").onclick=()=>showView("learn");$("tabPlan").onclick=()=>showView("plan");$("tabOverview").onclick=()=>showView("overview");$("tabVocab").onclick=()=>showView("vocab");$("tabData").onclick=()=>showView("data");
-$("refreshOverview").onclick=renderOverview;$("vocabSearch").oninput=renderVocab;$("saveEdit").onclick=saveEdit;$("cancelEdit").onclick=()=>{$("editCard").hidden=true};
+$("refreshOverview").onclick=renderOverview;$("vocabSearch").oninput=renderVocab;$("saveEdit").onclick=saveEdit;$("cancelEdit").onclick=closeEditModal;$("closeEdit").onclick=closeEditModal;$("editUnit").onchange=populateEditParts;$("editPart").onchange=updateEditLocation;$("editModal").addEventListener("click",function(e){if(e.target===$("editModal"))closeEditModal()});
 $("saveExam").onclick=saveExam;$("deleteExam").onclick=deleteExam;$("export").onclick=exportBackup;$("exportCourse").onclick=exportCurrentCourse;$("reset").onclick=resetAll;
 $("jsonFile").onchange=async e=>{var f=e.target.files&&e.target.files[0];if(!f)return;try{await importJson(f)}catch(err){$("importResult").textContent="Importfehler: "+err.message}e.target.value=""};
 
@@ -400,8 +540,7 @@ $("jsonFile").onchange=async e=>{var f=e.target.files&&e.target.files[0];if(!f)r
   bindUnitPart("unitSelect","partSelect",false,null);
   bindUnitPart("examUnit","examPart",false,renderExamSummary);
   bindUnitPart("overviewUnit","overviewPart",true,renderOverview);
-  bindUnitPart("vocabUnit","vocabPart",true,renderVocab);
-  $("appStatus").textContent="✓ Version 3.4 läuft. Französisch 10 · unterschiedliche Vokabeln begrenzbar · Wiederholungen diversifiziert.";
+  $("appStatus").textContent="✓ Version 3.5 läuft. Französisch 10 · Such-Editor mit Verschieben · Lernsession geprüft.";
   await startSession()
  }catch(err){$("appStatus").textContent="Startfehler: "+err.message;$("appStatus").style.background="#fdeaea"}
 })();

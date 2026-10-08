@@ -54,3 +54,25 @@ th{font-size:13px;color:#555}
 .muted{color:#666;font-size:13px}
 @media(max-width:800px){.form-grid,.form-grid.compact{grid-template-columns:1fr 1fr}}
 @media(max-width:560px){.form-grid,.form-grid.compact{grid-template-columns:1fr}.summary-grid{grid-template-columns:1fr 1fr}.vocab-item{grid-template-columns:1fr}}
+
+
+.header-badges{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+.course-badge{background:#e6eefc;color:#173b72;border-radius:999px;padding:6px 10px;font-weight:700;font-size:13px}
+.search-label{display:block;max-width:680px}
+.search-label input{font-size:18px;padding:14px 15px}
+.vocab-list{margin-top:14px}
+.vocab-item{cursor:pointer;transition:background .12s,border-color .12s}
+.vocab-item:hover,.vocab-item:focus-within{background:#f7f9fc;border-color:#b8c9e6}
+.vocab-hit{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center;width:100%;text-align:left;background:transparent;color:#111;padding:0;min-height:0;font-weight:400}
+.vocab-hit:hover{background:transparent}
+.vocab-hit-main strong{display:block;font-size:17px;margin-bottom:3px}
+.vocab-hit-arrow{font-size:24px;color:#777}
+.modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.38);z-index:30;display:flex;align-items:center;justify-content:center;padding:18px}
+.modal-backdrop[hidden]{display:none}
+.modal-card{width:min(720px,100%);max-height:90vh;overflow:auto;background:#fff;border-radius:18px;padding:20px;box-shadow:0 18px 60px rgba(0,0,0,.25)}
+.modal-head{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:16px}
+.modal-head h2{margin:0}
+.icon-button{width:42px;height:42px;min-height:42px;border-radius:50%;padding:0;background:#eee;color:#111;font-size:28px;line-height:1}
+.editor-grid{grid-template-columns:1fr 1fr}
+.editor-location{margin-top:14px;padding:10px 12px;border-radius:10px;background:#f4f5f7;color:#555;font-size:13px}
+@media(max-width:640px){.editor-grid{grid-template-columns:1fr}.modal-card{padding:16px}}

@@ -7,17 +7,17 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Vokabeltrainer">
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="stylesheet" href="styles.css?v=34">
-  <title>Vokabeltrainer – Prototyp 3.4</title>
+  <link rel="stylesheet" href="styles.css?v=35">
+  <title>Vokabeltrainer – Prototyp 3.5</title>
 </head>
 <body>
 <main>
   <header class="page-head">
     <div>
       <h1>Vokabeltrainer</h1>
-      <p class="sub">Prototyp 3.4 · Lernbereiche · Lernreihenfolge · Schwächenfokus · Klassenarbeit · Statistik</p>
+      <p class="sub">Prototyp 3.5 · Lernbereiche · Lernreihenfolge · Schwächenfokus · Klassenarbeit · Statistik</p>
     </div>
-    <span class="version">v3.4</span>
+    <div class="header-badges"><span class="course-badge">Französisch 10</span><span class="version">v3.5</span></div>
   </header>
 
   <div id="appStatus" class="status">JavaScript startet …</div>
@@ -187,34 +187,53 @@
     <section class="card">
       <div class="overview-head">
         <div>
-          <h2>Vokabelbestand</h2>
-          <p class="small">Suchen und einzelne Einträge bearbeiten.</p>
+          <h2>Vokabeln bearbeiten</h2>
+          <p class="small">Suche auf Deutsch oder Französisch. Tippe anschließend auf einen Treffer.</p>
         </div>
       </div>
-      <div class="form-grid compact">
-        <label>Unité / Modul <select id="vocabUnit"></select></label>
-        <label>Teilbereich <select id="vocabPart"></select></label>
-        <label>Suche <input id="vocabSearch" type="search" placeholder="Französisch oder Deutsch"></label>
-      </div>
+
+      <label class="search-label">Suche
+        <input id="vocabSearch" type="search" placeholder="z. B. Beruf, métier, santé …" autocomplete="off">
+      </label>
+      <div id="vocabSearchInfo" class="small"></div>
       <div id="vocabList" class="vocab-list"></div>
     </section>
 
-    <section class="card" id="editCard" hidden>
-      <h2>Vokabel bearbeiten</h2>
-      <input id="editId" type="hidden">
-      <div class="form-grid">
-        <label>Fremdsprache
-          <input id="editForeign" type="text">
-        </label>
-        <label>Deutsche Bedeutungen (mit ; trennen)
-          <input id="editMeanings" type="text">
-        </label>
-      </div>
-      <div class="buttons">
-        <button id="saveEdit" type="button">Änderung speichern</button>
-        <button id="cancelEdit" class="secondary" type="button">Abbrechen</button>
-      </div>
-    </section>
+    <div id="editModal" class="modal-backdrop" hidden>
+      <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="editTitle">
+        <div class="modal-head">
+          <h2 id="editTitle">Vokabel bearbeiten</h2>
+          <button id="closeEdit" type="button" class="icon-button" aria-label="Schließen">×</button>
+        </div>
+
+        <input id="editId" type="hidden">
+
+        <div class="form-grid editor-grid">
+          <label>Französisch
+            <input id="editForeign" type="text">
+          </label>
+
+          <label>Deutsch
+            <input id="editMeanings" type="text" placeholder="Mehrere Bedeutungen mit ; trennen">
+          </label>
+
+          <label>Unité / Modul
+            <select id="editUnit"></select>
+          </label>
+
+          <label id="editPartLabel">Teilbereich
+            <select id="editPart"></select>
+          </label>
+        </div>
+
+        <div class="editor-location" id="editLocation"></div>
+
+        <div class="buttons">
+          <button id="saveEdit" type="button">Speichern</button>
+          <button id="cancelEdit" class="secondary" type="button">Abbrechen</button>
+        </div>
+      </section>
+    </div>
   </section>
 
   <section id="dataView" hidden>
@@ -239,6 +258,6 @@
     </section>
   </section>
 </main>
-<script src="app.js?v=34"></script>
+<script src="app.js?v=35"></script>
 </body>
 </html>
