@@ -7,7 +7,7 @@ var DB_VERSION=2;
 var S_VOCAB="vocab",S_PROGRESS="progress",S_COURSES="courses",S_EXAMS="exams";
 var FIXED_COURSE_ID="franzoesisch";
 var SETTINGS_KEY="vokabeltrainer.settings.v2";
-var db=null,vocab=[],courses=[],autoTimer=null;
+var db=null,vocab=[],courses=[],autoTimer=null,correctDetectTimer=null;
 
 var seedCourse={id:"franzoesisch",name:"Französisch 10",learningLocale:"fr-FR",nativeLocale:"de-DE",schoolYearLabel:"Französisch 10"};
 var seed=[
@@ -20,7 +20,7 @@ var seedIds=new Set(seed.map(function(v){return v.id}));
 var session={
  active:false,pool:[],firstQueue:[],seen:{},current:null,currentDirection:"DE_FR",
  attempts:0,correct:0,testResults:[],lastId:null,recentIds:[],firstRoundComplete:false,
- awaitingChoice:false,sourceLabel:""
+ awaitingChoice:false,sourceLabel:"",currentResolved:false
 };
 
 function $(id){return document.getElementById(id)}
@@ -208,6 +208,7 @@ function collectSettings(){
   distinctCount:$("distinctCount")?parseInt($("distinctCount").value,10)||20:20,
   adaptive:$("adaptiveAfterFirst")?$("adaptiveAfterFirst").checked:true,
   autoNext:$("autoNext")?$("autoNext").checked:true,
+  autoDetectCorrect:$("autoDetectCorrect")?$("autoDetectCorrect").checked:true,
   overviewUnit:$("overviewUnit")?$("overviewUnit").value:"alle",
   overviewPart:$("overviewPart")?$("overviewPart").value:"alle",
   overviewSort:$("overviewSort")?$("overviewSort").value:"book"
@@ -229,6 +230,7 @@ function applySettings(s){
  if($("distinctCount")&&s.distinctCount)$("distinctCount").value=s.distinctCount;
  if($("adaptiveAfterFirst")&&typeof s.adaptive==="boolean")$("adaptiveAfterFirst").checked=s.adaptive;
  if($("autoNext")&&typeof s.autoNext==="boolean")$("autoNext").checked=s.autoNext;
+ if($("autoDetectCorrect")&&typeof s.autoDetectCorrect==="boolean")$("autoDetectCorrect").checked=s.autoDetectCorrect;
  setIf("overviewUnit",s.overviewUnit);
  populatePart($("overviewPart"),FIXED_COURSE_ID,$("overviewUnit").value,true);
  setIf("overviewPart",s.overviewPart);setIf("overviewSort",s.overviewSort)
@@ -241,7 +243,7 @@ function resetSessionState(pool,label){
  session={
   active:true,pool:pool,firstQueue:pool.slice(),seen:{},current:null,currentDirection:"DE_FR",
   attempts:0,correct:0,testResults:[],lastId:null,recentIds:[],firstRoundComplete:false,
-  awaitingChoice:false,sourceLabel:label||""
+  awaitingChoice:false,sourceLabel:label||"",currentResolved:false
  };
  $("roundCompletePanel").hidden=true;
  $("showAnswer").hidden=$("sessionTypeSelect").value==="test"
@@ -257,7 +259,7 @@ async function startSession(){
  resetSessionState(pool,currentScopeText());
  $("scopeInfo").textContent=currentScopeText()+" · "+pool.length+" verschiedene Vokabeln ausgewählt"+
   (available.length>pool.length?" (von "+available.length+" verfügbaren).":".")+" Jede wird zuerst genau einmal abgefragt.";
- saveSettings();await chooseNext(true)
+ saveSettings();showView("trainer");await chooseNext(true)
 }
 async function startDueSession(){
  var available=filtered(FIXED_COURSE_ID,$("unitSelect").value,$("partSelect").value),focus=[];
@@ -272,14 +274,14 @@ async function startDueSession(){
  $("sessionTypeSelect").value="learn";
  resetSessionState(focus,"Heute fällig / schwach");
  $("scopeInfo").textContent="Heute fällig / schwach · "+focus.length+" verschiedene Vokabeln.";
- saveSettings();await chooseNext(true)
+ saveSettings();showView("trainer");await chooseNext(true)
 }
 async function startCustomSession(pool,label){
  if(!pool.length)return;
  $("sessionTypeSelect").value="learn";
  $("distinctCount").value=pool.length;
  resetSessionState(pool,label);
- showView("learn");
+ showView("trainer");
  $("scopeInfo").textContent=label+" · "+pool.length+" verschiedene Vokabeln.";
  saveSettings();await chooseNext(true)
 }
@@ -330,23 +332,38 @@ async function continueWeak(){
 }
 function endSession(){
  session.active=false;session.awaitingChoice=false;$("roundCompletePanel").hidden=true;
- $("prompt").textContent="Session beendet.";$("answer").value="";$("feedback").className="feedback";$("feedback").textContent="Du kannst eine neue Session starten."
+ $("prompt").textContent="Session beendet.";$("answer").value="";$("feedback").className="feedback";$("feedback").textContent="Du kannst eine neue Session starten.";document.documentElement.lang="de";showView("home")
 }
 async function renderCurrent(){
  var v=session.current;if(!v)return;
- var p=await gp(v.id),d=session.currentDirection;
- $("prompt").textContent=d==="DE_FR"?v.meanings.join(" / "):v.foreign;
- $("directionLabel").textContent=d==="DE_FR"?"Deutsch → Französisch":"Französisch → Deutsch";
- $("languageHint").textContent=d==="DE_FR"?"Französisch schreiben – Scribble/Diktat entsprechend einstellen.":"Deutsch schreiben – Scribble/Diktat auf Deutsch.";
- $("answer").lang=d==="DE_FR"?"fr-FR":"de-DE";$("answer").value="";
- $("feedback").className="feedback";$("feedback").textContent=$("sessionTypeSelect").value==="test"?"Test: Antwort eingeben und prüfen. Lösungen werden erst am Ende gezeigt.":"Noch keine Antwort geprüft.";
- $("currentLevel").textContent="Lernstufe "+(d==="DE_FR"?p.deFr:p.frDe);updateSessionBadges();keepFocus()
+ var p=await gp(v.id),d=session.currentDirection,fr=d==="DE_FR";
+ session.currentResolved=false;
+ clearTimeout(correctDetectTimer);
+ $("check").textContent="Prüfen";
+ $("prompt").textContent=fr?v.meanings.join(" / "):v.foreign;
+ $("directionLabel").textContent=fr?"Deutsch → Französisch":"Französisch → Deutsch";
+ $("languageHint").textContent=fr?"Antwort auf Französisch.":"Antwort auf Deutsch.";
+ $("answer").lang=fr?"fr-FR":"de-DE";
+ $("answer").setAttribute("lang",fr?"fr-FR":"de-DE");
+ document.documentElement.lang=fr?"fr":"de";
+ $("writingLanguage").textContent=fr?"✎ Schreibsprache: Französisch":"✎ Schreibsprache: Deutsch";
+ $("answer").value="";
+ $("feedback").className="feedback";
+ $("feedback").textContent=$("sessionTypeSelect").value==="test"?"Test: Antwort schreiben und Return drücken.":"Schreiben – bei exakt richtiger Antwort geht es automatisch weiter.";
+ $("currentLevel").textContent="Lernstufe "+(fr?p.deFr:p.frDe);
+ $("trainerScope").textContent=session.sourceLabel||currentScopeText();
+ updateSessionBadges();keepFocus()
 }
 function updateSessionBadges(){
- $("sessionCoverage").textContent=Object.keys(session.seen).length+" / "+session.pool.length+" verschiedene gesehen";
- $("sessionScore").textContent="Session: "+session.attempts+" Abfragen · "+session.correct+" richtig"
+ var seen=Object.keys(session.seen).length,total=session.pool.length,quote=session.attempts?Math.round(session.correct/session.attempts*100):0;
+ $("sessionCoverage").textContent=seen+" / "+total+" verschiedene gesehen";
+ $("sessionScore").textContent="Session: "+session.attempts+" Abfragen · "+session.correct+" richtig";
+ $("bigProgress").textContent=seen+" / "+total;
+ $("bigQuote").textContent=session.attempts?quote+" %":"–";
+ $("bigAttempts").textContent=session.attempts;
+ $("progressFill").style.width=(total?Math.min(100,seen/total*100):0)+"%"
 }
-function keepFocus(){setTimeout(function(){try{$("answer").focus({preventScroll:true})}catch(e){$("answer").focus()}},30)}
+function keepFocus(){setTimeout(function(){if(!$("trainerView").hidden&&session.active&&!session.awaitingChoice){try{$("answer").focus({preventScroll:true})}catch(e){$("answer").focus()}}},30)}
 function nextDue(level){
  var days=[0,1,2,4,7,14][Math.max(0,Math.min(5,level))],d=new Date();d.setDate(d.getDate()+days);return d.toISOString()
 }
@@ -381,12 +398,13 @@ async function recordResult(v,d,kind){
 }
 async function checkAnswer(){
  if(!session.active||!session.current||session.awaitingChoice)return;
+ if(session.currentResolved){await chooseNext();return}
  var v=session.current,d=session.currentDirection,g=norm($("answer").value),fb=$("feedback");
  if(!g){fb.className="feedback almost";fb.textContent="Bitte zuerst antworten.";keepFocus();return}
  var result=evaluateAnswer(v,d,g),expected=d==="DE_FR"?v.foreign:v.meanings.join(" / ");
  var p=await recordResult(v,d,result.kind);
  session.attempts++;if(result.kind==="correct"){session.correct++}
- session.seen[v.id]=true;
+ session.seen[v.id]=true;session.currentResolved=true;
  session.testResults.push({id:v.id,kind:result.kind,direction:d,prompt:d==="DE_FR"?v.meanings.join(" / "):v.foreign,expected:expected});
  updateSessionBadges();$("currentLevel").textContent="Lernstufe "+(d==="DE_FR"?p.deFr:p.frDe);
 
@@ -398,6 +416,7 @@ async function checkAnswer(){
  if(result.kind==="correct"){fb.className="feedback good";fb.innerHTML="✓ Richtig: <strong>"+escapeHtml(expected)+"</strong>"}
  else if(result.kind==="almost"){fb.className="feedback almost";fb.innerHTML="Fast richtig – "+escapeHtml(result.reason)+"<br>Richtig: <strong>"+escapeHtml(expected)+"</strong>"}
  else{fb.className="feedback bad";fb.innerHTML="✗ Noch nicht richtig.<br>Richtig: <strong>"+escapeHtml(expected)+"</strong>"}
+ if(result.kind!=="correct"||!$("autoNext").checked)$("check").textContent="Weiter";
  keepFocus();
  if(result.kind==="correct"&&$("autoNext").checked){clearTimeout(autoTimer);autoTimer=setTimeout(function(){chooseNext()},750)}
 }
@@ -418,9 +437,9 @@ async function revealCurrent(){
  $("feedback").className="feedback almost";
  $("feedback").innerHTML="Antwort: <strong>"+escapeHtml(d==="DE_FR"?v.foreign:v.meanings.join(" / "))+"</strong><br><span class='small'>Als nicht gewusst markiert.</span>";
  if(!session.seen[v.id]){
-  await recordResult(v,d,"wrong");session.attempts++;session.seen[v.id]=true;updateSessionBadges()
+  await recordResult(v,d,"wrong");session.attempts++;session.seen[v.id]=true;session.currentResolved=true;updateSessionBadges()
  }
- keepFocus()
+ $("check").textContent="Weiter";keepFocus()
 }
 function finishTest(){
  var total=session.testResults.length,ok=session.testResults.filter(function(x){return x.kind==="correct"}).length;
@@ -439,12 +458,46 @@ function finishTest(){
 }
 
 function showView(name){
- ["learn","plan","overview","vocab","data"].forEach(function(x){
-  $(x+"View").hidden=x!==name;$("tab"+x[0].toUpperCase()+x.slice(1)).classList.toggle("active",x===name)
+ var views=["home","learn","trainer","plan","overview","vocab","data"];
+ views.forEach(function(x){$(x+"View").hidden=x!==name});
+ ["home","learn","plan","overview","vocab","data"].forEach(function(x){
+  var tab=$("tab"+x[0].toUpperCase()+x.slice(1));if(tab)tab.classList.toggle("active",x===name)
  });
+ document.body.classList.toggle("trainer-mode",name==="trainer");
+ if(name!=="trainer")document.documentElement.lang="de";
+ if(name==="home")renderHome();
  if(name==="overview")renderOverview();
  if(name==="vocab")renderVocab();
  if(name==="plan")renderExamSummary()
+}
+
+async function renderHome(){
+ $("homeTotal").textContent=vocab.filter(function(v){return v.courseId===FIXED_COURSE_ID}).length;
+ var n=0,d=0,w=0,all=vocab.filter(function(v){return v.courseId===FIXED_COURSE_ID});
+ for(var i=0;i<all.length;i++){
+  var p=await gp(all[i].id);
+  if(p.attempts===0)n++;
+  if(isDue(p))d++;
+  if(p.attempts>0&&Math.min(p.deFr,p.frDe)<=1)w++
+ }
+ $("homeNew").textContent=n;$("homeDue").textContent=d;$("homeWeak").textContent=w;
+ var e=await reqP(os(S_EXAMS).get(FIXED_COURSE_ID));
+ if(e&&e.date){
+  var days=Math.max(0,Math.ceil((new Date(e.date+"T12:00:00")-new Date())/86400000));
+  $("homeExamText").textContent="Klassenarbeit in "+days+" Tag"+(days===1?"":"en")+" · Lernpensum planen"
+ }else $("homeExamText").textContent="Stoff und Lernpensum planen"
+}
+async function startHomeDueSession(){
+ var all=vocab.filter(function(v){return v.courseId===FIXED_COURSE_ID}),focus=[];
+ for(var i=0;i<all.length;i++){
+  var p=await gp(all[i].id);
+  if(p.attempts===0||isDue(p)||Math.min(p.deFr,p.frDe)<=1)focus.push(all[i])
+ }
+ if(!focus.length){alert("Heute sind keine neuen, fälligen oder schwachen Vokabeln vorhanden.");return}
+ focus=await priorityPool(focus);
+ var s=loadSavedSettings(),count=Math.max(1,parseInt(s.distinctCount,10)||20);
+ focus=focus.slice(0,Math.min(count,focus.length));
+ await startCustomSession(focus,"Heute lernen")
 }
 function fmtDate(iso){if(!iso)return"–";try{return new Intl.DateTimeFormat("de-DE",{day:"2-digit",month:"2-digit",year:"2-digit"}).format(new Date(iso))}catch(e){return"–"}}
 
@@ -682,19 +735,57 @@ function bindUnitPart(unitId,partId,afterChange){
  $(partId).addEventListener("change",function(){saveSettings();if(afterChange)afterChange()})
 }
 
+
+function scheduleExactAutoCheck(){
+ clearTimeout(correctDetectTimer);
+ if(!$("autoDetectCorrect").checked||!session.active||session.currentResolved||session.awaitingChoice||!session.current)return;
+ var currentId=session.current.id,currentText=$("answer").value;
+ if(!norm(currentText))return;
+ correctDetectTimer=setTimeout(async function(){
+  if(!session.active||session.currentResolved||session.awaitingChoice||!session.current||session.current.id!==currentId)return;
+  if($("answer").value!==currentText)return;
+  var result=evaluateAnswer(session.current,session.currentDirection,norm(currentText));
+  if(result.kind==="correct")await checkAnswer()
+ },550)
+}
+function preserveAnswerFocusOnButton(id){
+ var el=$(id);if(!el)return;
+ el.addEventListener("pointerdown",function(e){
+  if(!$("trainerView").hidden)e.preventDefault()
+ })
+}
+$("answer").addEventListener("input",scheduleExactAutoCheck);
+$("answer").addEventListener("keydown",function(e){
+ if(e.key==="Enter"&&!e.shiftKey){
+  e.preventDefault();clearTimeout(correctDetectTimer);
+  if(session.currentResolved)chooseNext();else checkAnswer()
+ }
+});
+$("answer").addEventListener("blur",function(){
+ setTimeout(function(){if(!$("trainerView").hidden&&session.active&&!session.awaitingChoice)keepFocus()},60)
+});
+["check","showAnswer","continueWeak","endSession"].forEach(preserveAnswerFocusOnButton);
+
 $("startSession").onclick=startSession;
 $("startDue").onclick=startDueSession;
 $("check").onclick=checkAnswer;
-$("next").onclick=skipCurrent;
 $("showAnswer").onclick=revealCurrent;
 $("continueWeak").onclick=continueWeak;
 $("endSession").onclick=endSession;
 
+$("tabHome").onclick=function(){showView("home")};
 $("tabLearn").onclick=function(){showView("learn")};
 $("tabPlan").onclick=function(){showView("plan")};
 $("tabOverview").onclick=function(){showView("overview")};
 $("tabVocab").onclick=function(){showView("vocab")};
 $("tabData").onclick=function(){showView("data")};
+$("homeLearn").onclick=function(){showView("learn")};
+$("homeDueLearn").onclick=startHomeDueSession;
+$("homePlan").onclick=function(){showView("plan")};
+$("homeVocab").onclick=function(){showView("vocab")};
+$("homeOverview").onclick=function(){showView("overview")};
+$("homeData").onclick=function(){showView("data")};
+$("leaveTrainer").onclick=function(){endSession()};
 
 $("refreshOverview").onclick=renderOverview;
 $("overviewSort").onchange=function(){saveSettings();renderOverview()};
@@ -729,7 +820,7 @@ $("backupRestoreFile").onchange=async function(e){
  e.target.value=""
 };
 
-["orderSelect","directionSelect","sessionTypeSelect","distinctCount","adaptiveAfterFirst","autoNext"].forEach(function(id){
+["orderSelect","directionSelect","sessionTypeSelect","distinctCount","adaptiveAfterFirst","autoNext","autoDetectCorrect"].forEach(function(id){
  $(id).addEventListener("change",saveSettings)
 });
 
@@ -739,8 +830,8 @@ $("backupRestoreFile").onchange=async function(e){
   bindUnitPart("unitSelect","partSelect",null);bindUnitPart("overviewUnit","overviewPart",renderOverview);
   applySettings(loadSavedSettings());
   await renderExamSummary();
-  $("appStatus").textContent="✓ Version 3.6 läuft. Additiver Vokabelimport und vollständiges Backup sind sauber getrennt.";
-  await startSession()
+  $("appStatus").textContent="✓ Version 3.7 läuft. Startseite · fokussierter Schreibmodus · flüssiger Pencil-Workflow.";
+  showView("home");await renderHome()
  }catch(err){
   $("appStatus").textContent="Startfehler: "+err.message;$("appStatus").style.background="#fdeaea";console.error(err)
  }

@@ -7,30 +7,75 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Vokabeltrainer">
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="stylesheet" href="styles.css?v=36">
-  <title>Vokabeltrainer – Prototyp 3.6</title>
+  <link rel="stylesheet" href="styles.css?v=37">
+  <title>Vokabeltrainer – Prototyp 3.7</title>
 </head>
 <body>
 <main>
   <header class="page-head">
     <div>
       <h1>Vokabeltrainer</h1>
-      <p class="sub">Prototyp 3.6 · Lernbereiche · Lernreihenfolge · Schwächenfokus · Klassenarbeit · Statistik</p>
+      <p class="sub">Prototyp 3.7 · Lernbereiche · Lernreihenfolge · Schwächenfokus · Klassenarbeit · Statistik</p>
     </div>
-    <div class="header-badges"><span class="course-badge">Französisch 10</span><span class="version">v3.6</span></div>
+    <div class="header-badges"><span class="course-badge">Französisch 10</span><span class="version">v3.7</span></div>
   </header>
 
   <div id="appStatus" class="status">JavaScript startet …</div>
 
   <nav class="tabs">
-    <button id="tabLearn" class="tab active" type="button">Lernen</button>
+    <button id="tabHome" class="tab active" type="button">Start</button>
+    <button id="tabLearn" class="tab" type="button">Lernen</button>
     <button id="tabPlan" class="tab" type="button">Klassenarbeit</button>
     <button id="tabOverview" class="tab" type="button">Übersicht</button>
     <button id="tabVocab" class="tab" type="button">Vokabeln</button>
     <button id="tabData" class="tab" type="button">Daten</button>
   </nav>
 
-  <section id="learnView">
+
+  <section id="homeView">
+    <section class="home-hero">
+      <div>
+        <span class="eyebrow">Französisch 10</span>
+        <h2>Was möchtest du machen?</h2>
+        <p>Der Trainer merkt sich Lernstände, Fälligkeiten und deine letzte Auswahl.</p>
+      </div>
+      <div class="home-stats">
+        <div class="home-stat"><strong id="homeTotal">0</strong><span>Vokabeln</span></div>
+        <div class="home-stat"><strong id="homeNew">0</strong><span>noch neu</span></div>
+        <div class="home-stat"><strong id="homeDue">0</strong><span>fällig</span></div>
+        <div class="home-stat"><strong id="homeWeak">0</strong><span>schwach</span></div>
+      </div>
+    </section>
+
+    <section class="home-grid">
+      <button id="homeLearn" class="home-action primary-action" type="button">
+        <span class="home-icon">✎</span><strong>Lernen</strong>
+        <span>Unité, Volet, Richtung und Anzahl auswählen</span>
+      </button>
+      <button id="homeDueLearn" class="home-action" type="button">
+        <span class="home-icon">↻</span><strong>Heute lernen</strong>
+        <span>Neue, fällige und schwache Vokabeln priorisieren</span>
+      </button>
+      <button id="homePlan" class="home-action" type="button">
+        <span class="home-icon">□</span><strong>Klassenarbeit</strong>
+        <span id="homeExamText">Stoff und Lernpensum planen</span>
+      </button>
+      <button id="homeVocab" class="home-action" type="button">
+        <span class="home-icon">⌕</span><strong>Vokabeln bearbeiten</strong>
+        <span>Suchen, korrigieren, verschieben oder ergänzen</span>
+      </button>
+      <button id="homeOverview" class="home-action" type="button">
+        <span class="home-icon">◎</span><strong>Übersicht</strong>
+        <span>Lernstände und schwierige Vokabeln ansehen</span>
+      </button>
+      <button id="homeData" class="home-action" type="button">
+        <span class="home-icon">⇩</span><strong>Daten & Backup</strong>
+        <span>Neue Vokabeln importieren oder Backup sichern</span>
+      </button>
+    </section>
+  </section>
+
+  <section id="learnView" hidden>
     <section class="card">
       <h2>Lernsession einstellen</h2>
       <div class="form-grid">
@@ -81,38 +126,73 @@
       <p class="small" id="scopeInfo"></p>
     </section>
 
-    <section class="card" id="trainerCard">
-      <div class="top">
-        <span class="badge" id="sessionCoverage">0 / 0 einmal gesehen</span>
+  </section>
+
+  <section id="trainerView" hidden>
+    <section class="trainer-shell">
+      <div class="trainer-toolbar">
+        <button id="leaveTrainer" type="button" class="secondary compact-button">← Beenden</button>
+        <div id="trainerScope" class="trainer-scope">Französisch 10</div>
+        <div id="writingLanguage" class="language-chip">✎ Schreibsprache: Französisch</div>
+      </div>
+
+      <div class="trainer-metrics">
+        <div class="trainer-metric">
+          <strong id="bigProgress">0 / 0</strong>
+          <span>verschiedene</span>
+        </div>
+        <div class="trainer-metric">
+          <strong id="bigQuote">–</strong>
+          <span>richtig</span>
+        </div>
+        <div class="trainer-metric">
+          <strong id="bigAttempts">0</strong>
+          <span>Abfragen</span>
+        </div>
+      </div>
+      <div class="progress-track"><div id="progressFill" class="progress-fill"></div></div>
+
+      <div class="trainer-status-row">
+        <span class="badge" id="sessionCoverage">0 / 0 verschiedene gesehen</span>
         <span class="badge" id="currentLevel">Lernstufe 0</span>
-        <span class="badge" id="sessionScore">Session: 0 richtig / 0</span>
+        <span class="badge" id="sessionScore">Session: 0 Abfragen</span>
       </div>
 
       <div class="direction-row">
         <div>
           <div class="label" id="directionLabel">Deutsch → Französisch</div>
-          <div id="languageHint" class="language-hint">Französisch schreiben – Scribble einmal auf Französisch stellen.</div>
+          <div id="languageHint" class="language-hint">Französisch schreiben.</div>
         </div>
       </div>
 
-      <div class="prompt" id="prompt">Bitte Session starten.</div>
+      <div class="prompt trainer-prompt" id="prompt">Bitte Session starten.</div>
 
-      <label for="answer"><strong>Antwort</strong></label>
-      <textarea id="answer" lang="fr" autocomplete="off" autocapitalize="none"
-        spellcheck="false" placeholder="Mit Apple Pencil schreiben, tippen oder iPad-Diktat verwenden …"></textarea>
+      <label for="answer" class="answer-label">Antwort</label>
+      <textarea id="answer" class="trainer-answer" lang="fr-FR" inputmode="text" enterkeyhint="done"
+        autocomplete="off" autocapitalize="none" spellcheck="false"
+        placeholder="Mit Apple Pencil schreiben …"></textarea>
 
-      <div class="buttons">
-        <button type="button" id="check">Prüfen</button>
-        <button type="button" id="next" class="secondary">Weiter</button>
-        <button type="button" id="showAnswer" class="secondary">Antwort zeigen</button>
+      <div class="workflow-hint">
+        <strong>Ohne Finger:</strong> Eine exakt richtige Antwort wird nach kurzer Schreibpause automatisch erkannt.
+        Die Return-Taste prüft; nach einem Fehler führt Return zur nächsten Vokabel.
       </div>
 
+      <div class="trainer-actions">
+        <button type="button" id="check" class="big-check">Prüfen</button>
+        <button type="button" id="showAnswer" class="secondary">Weiß ich nicht / Antwort zeigen</button>
+      </div>
+
+      <label class="auto-row">
+        <input type="checkbox" id="autoDetectCorrect" checked>
+        Exakt richtige Antworten nach kurzer Schreibpause automatisch erkennen
+      </label>
       <label class="auto-row">
         <input type="checkbox" id="autoNext" checked>
         Nach richtiger Antwort automatisch weiter
       </label>
 
       <div id="feedback" class="feedback">Noch keine Antwort geprüft.</div>
+
       <div id="roundCompletePanel" class="round-complete" hidden>
         <strong id="roundCompleteText">Erste Runde abgeschlossen.</strong>
         <div class="buttons">
@@ -120,8 +200,10 @@
           <button id="endSession" type="button" class="secondary">Session beenden</button>
         </div>
       </div>
+
       <p class="small note">
-        Für Handschrift nutzt der Prototyp iPad Scribble. Zum Sprechen bitte die iPad-Diktierfunktion im Antwortfeld verwenden.
+        Die App setzt das Antwortfeld ausdrücklich auf Französisch bzw. Deutsch und hält den Fokus im Schreibfeld.
+        iPadOS entscheidet die tatsächliche Scribble-Sprache trotzdem anhand der aktiven Tastatursprache.
       </p>
     </section>
   </section>
@@ -297,6 +379,6 @@
     </section>
   </section>
 </main>
-<script src="app.js?v=36"></script>
+<script src="app.js?v=37"></script>
 </body>
 </html>
