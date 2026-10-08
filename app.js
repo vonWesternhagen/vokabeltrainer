@@ -1,7 +1,7 @@
 (function(){
 "use strict";
 
-var APP_VERSION="4.1";
+var APP_VERSION="4.2";
 var DB_NAME="VokabeltrainerTest";
 var DB_VERSION=2;
 var S_VOCAB="vocab",S_PROGRESS="progress",S_COURSES="courses",S_EXAMS="exams";
@@ -198,7 +198,7 @@ function unitsForCourse(courseId){
   .sort(function(a,b){return(order[a]||99)-(order[b]||99)||a.localeCompare(b)})
 }
 function populateUnit(sel,courseId,includeAll){
- fillSelect(sel,unitsForCourse(courseId).map(function(x){return{value:x,label:unitLabel(x)}}),includeAll?"Alle":null)
+ fillSelect(sel,unitsForCourse(courseId).map(function(x){return{value:x,label:unitLabel(x)}}),includeAll?"Alle Vokabeln":null)
 }
 function partsFor(courseId,unit){
  if(/^module-[a-d]$/.test(unit))return[];
@@ -207,6 +207,9 @@ function partsFor(courseId,unit){
  }).map(function(v){return partGroup(v.unitId)}))).filter(function(x){return x!=="alle"}).sort()
 }
 function populatePart(sel,courseId,unit,includeAll){
+ if(unit==="alle"){
+  sel.innerHTML="";var all=document.createElement("option");all.value="alle";all.textContent="Alle Vokabeln";sel.appendChild(all);sel.disabled=true;return
+ }
  var parts=partsFor(courseId,unit);
  fillSelect(sel,parts.map(function(x){return{value:x,label:partLabel(x)}}),includeAll?"Alle":null);
  if(/^module-[a-d]$/.test(unit)){
@@ -632,7 +635,7 @@ async function renderHome(){
   var days=Math.max(0,Math.ceil((new Date(e.date+"T12:00:00")-new Date())/86400000));
   $("homeExamText").textContent="Klassenarbeit in "+days+" Tag"+(days===1?"":"en")+" · Lernpensum planen"
  }else $("homeExamText").textContent="Stoff und Lernpensum planen";
- $("appStatus").textContent="✓ Version 4.1 läuft · "+(cid?courseName(cid)+" · "+all.length+" Vokabeln":"noch keine Vokabeln importiert")
+ $("appStatus").textContent="✓ Version 4.2 läuft · "+(cid?courseName(cid)+" · "+all.length+" Vokabeln":"noch keine Vokabeln importiert")
 }
 async function switchActiveCourse(id){
  setActiveCourse(id);saveSettings();populateAllSelectors();updateCourseLabels();await renderHome()
@@ -820,11 +823,25 @@ async function exportCurrentCourse(){
  var safe=(courseName(cid)||cid).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"");
  downloadJson({fileType:"vocabulary-course",schemaVersion:7,exportedAt:new Date().toISOString(),course:c,entries:entries},"vokabeltrainer-"+safe+".json")
 }
+async function parseJsonFile(file){
+ var text;
+ try{text=await file.text()}catch(e){throw new Error("Die Datei konnte nicht gelesen werden.")}
+ var data;
+ try{data=JSON.parse(text)}catch(e){throw new Error("Die Datei ist kein gültiges JSON.")}
+ return data
+}
+function isFullBackup(data){
+ return !!(data&&(
+  data.backupType==="full-backup" ||
+  (Array.isArray(data.courses)&&Array.isArray(data.entries)&&Array.isArray(data.progress)&&Array.isArray(data.exams))
+ ))
+}
 async function importVocabularyFile(file){
  var data=await parseJsonFile(file);
  if(isFullBackup(data))throw new Error("Das ist ein komplettes Backup. Bitte unten „Backup wiederherstellen“ verwenden.");
  var entries=Array.isArray(data)?data:data.entries;
- if(!Array.isArray(entries))throw new Error("Keine Vokabelliste gefunden.");
+ if(!Array.isArray(entries))throw new Error("Keine Vokabelliste gefunden. Erwartet wird ein Array oder ein Objekt mit „entries“.");
+ if(!entries.length)throw new Error("Die Vokabeldatei enthält 0 Einträge.");
  var importedCourse=(data&&data.course&&data.course.id)?String(data.course.id):(activeCourseId()||"franzoesisch");
  var unitNames=new Map();
  if(data&&Array.isArray(data.units))data.units.forEach(function(u){if(u&&u.id)unitNames.set(String(u.id),u.name||u.label||String(u.id))});
@@ -883,7 +900,7 @@ async function resetAll(){
 
 function populateAllSelectors(){
  var cid=activeCourseId();
- populateUnit($("unitSelect"),cid,false);populatePart($("partSelect"),cid,$("unitSelect").value,true);
+ populateUnit($("unitSelect"),cid,true);populatePart($("partSelect"),cid,$("unitSelect").value,true);
  populateUnit($("overviewUnit"),cid,true);populatePart($("overviewPart"),cid,$("overviewUnit").value,true);
  populateExamScopes([])
 }

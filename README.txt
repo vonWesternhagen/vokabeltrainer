@@ -1,23 +1,17 @@
-Vokabeltrainer 4.1 – tolerantere Korrektur
+Vokabeltrainer 4.2 – Importreparatur
 
-Neu:
-- Satzzeichen werden beim Vergleich ignoriert:
-  ?, !, ., ,, :, ;, -, Apostrophe usw.
-- Leerzeichen werden ignoriert.
-- Akzentzeichen/Diakritika werden beim Vergleich ebenfalls tolerant behandelt.
-  Beispiel: "ca sonne" wird für "Ça sonne !" als richtig erkannt.
-- Groß-/Kleinschreibung spielt weiterhin keine Rolle.
-- Bei nur kleinen Tipp- oder Scribble-Abweichungen erscheint:
-  "✓ Habe ich gewusst"
-- Dieser Button ist NUR bei kleinen Abweichungen sichtbar.
-- Beim Klick wird der bereits gespeicherte "fast richtig"-Versuch sauber in "richtig"
-  umgewandelt; es entsteht keine zusätzliche Abfrage.
-- Im Testmodus gibt es diesen Selbstkorrektur-Button bewusst nicht.
+WICHTIGER FEHLER BEHOBEN:
+In V3.9 bis V4.1 waren beim Umbau versehentlich die Funktionen
+parseJsonFile() und isFullBackup() aus app.js entfernt worden.
+Der Import-Button rief diese Funktionen weiterhin auf. Deshalb konnte
+keine Vokabeldatei mehr importiert werden – unabhängig davon, ob die Datei korrekt war.
 
-Definition "kleine Abweichung":
-- Levenshtein-Abstand abhängig von der Wortlänge
-- mindestens 80 % Ähnlichkeit
-- höchstens 1–3 Zeichen Abweichung
-- größere Unterschiede bleiben falsch
+Behoben:
+- JSON-Dateien können wieder gelesen und geparst werden.
+- Vokabeldatei und Vollbackup werden wieder sauber unterschieden.
+- aussagekräftige Fehler bei ungültigem JSON / leerer Vokabelliste.
+- die Französisch-6-Datei mit 79 Einträgen ist strukturell kompatibel.
+- Beim Lernen gibt es jetzt zusätzlich „Alle Vokabeln“.
+  Dann wird der gesamte aktive Kurs als Lernbereich verwendet.
 
-Nach GitHub-Upload mit ?v=41 öffnen.
+Nach GitHub-Upload mit ?v=42 öffnen.
