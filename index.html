@@ -7,8 +7,8 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Vokabeltrainer">
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="stylesheet" href="styles.css?v=43">
-  <title>Vokabeltrainer – Version 4.3</title>
+  <link rel="stylesheet" href="styles.css?v=44">
+  <title>Vokabeltrainer – Version 4.4</title>
 </head>
 <body>
 <main>
@@ -18,7 +18,7 @@
       <p class="sub">Schritt für Schritt sicherer werden · mit deinem eigenen Lerntempo</p>
       <p class="header-note">Wähle deinen Lernweg, übe gezielt und sieh sofort, was schon sicher sitzt.</p>
     </div>
-    <div class="header-badges"><span class="course-badge" id="activeCourseBadge">Noch kein Kurs</span><span class="version">v4.3</span></div>
+    <div class="header-badges"><span class="course-badge" id="activeCourseBadge">Noch kein Kurs</span><span class="version">v4.4</span></div>
   </header>
 
   <div id="appStatus" class="status">JavaScript startet …</div>
@@ -300,7 +300,7 @@
     <section class="card">
       <div class="breadcrumb">Daten</div><h2>Neue Vokabeln additiv einlesen</h2>
       <p class="small">
-        Dieser Import fügt <strong>nur neue Vokabeln</strong> hinzu. Jede Datei muss eindeutig angeben, zu welchem Kurs sie gehört (z. B. Französisch 6). Bereits vorhandene IDs werden nicht verändert.
+        Der Import erkennt auch ältere Vokabeldateien. Kurs und Unité werden vor dem Speichern geprüft; vorhandene Lernstände bleiben erhalten.
         Damit bleiben manuelle Korrekturen und Verschiebungen erhalten. Lernstände werden hier niemals importiert oder überschrieben.
       </p>
       <div class="buttons">
@@ -338,6 +338,6 @@
     </section>
   </section>
 </main>
-<script src="app.js?v=43"></script>
+<script src="app.js?v=44"></script>
 </body>
 </html>

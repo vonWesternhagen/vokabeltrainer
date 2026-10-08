@@ -1,7 +1,7 @@
 (function(){
 "use strict";
 
-var APP_VERSION="4.3";
+var APP_VERSION="4.4";
 var DB_NAME="VokabeltrainerTest";
 var DB_VERSION=2;
 var S_VOCAB="vocab",S_PROGRESS="progress",S_COURSES="courses",S_EXAMS="exams";
@@ -683,7 +683,7 @@ async function renderHome(){
   var days=Math.max(0,Math.ceil((new Date(e.date+"T12:00:00")-new Date())/86400000));
   $("homeExamText").textContent="Klassenarbeit in "+days+" Tag"+(days===1?"":"en")+" · Lernpensum planen"
  }else $("homeExamText").textContent="Stoff und Lernpensum planen";
- $("appStatus").textContent="✓ Version 4.3 läuft · "+(cid?courseName(cid)+" · "+all.length+" Vokabeln":"noch keine Vokabeln importiert")
+ $("appStatus").textContent="✓ Version 4.4 läuft · "+(cid?courseName(cid)+" · "+all.length+" Vokabeln":"noch keine Vokabeln importiert")
 }
 async function switchActiveCourse(id){
  setActiveCourse(id);saveSettings();populateAllSelectors();updateCourseLabels();await renderHome()
@@ -874,34 +874,72 @@ function isFullBackup(data){
 async function importVocabularyFile(file){
  var data=await parseJsonFile(file);
  if(isFullBackup(data))throw new Error("Das ist ein komplettes Backup. Bitte unten „Backup wiederherstellen“ verwenden.");
- if(!data||Array.isArray(data)||!data.course||!data.course.id)throw new Error("Kursangabe fehlt. Jede Vokabeldatei muss course.id enthalten, z. B. „franzoesisch-6“.");
- var entries=data.entries;
- if(!Array.isArray(entries))throw new Error("Keine Vokabelliste gefunden. Erwartet wird ein Objekt mit „course“ und „entries“.");
+
+ var entries=Array.isArray(data)?data:data&&data.entries;
+ if(!Array.isArray(entries))throw new Error("Keine Vokabelliste gefunden.");
  if(!entries.length)throw new Error("Die Vokabeldatei enthält 0 Einträge.");
 
- var importedCourse=String(data.course.id).trim(),courseLabel=String(data.course.label||data.course.name||importedCourse).trim();
- if(!importedCourse)throw new Error("course.id darf nicht leer sein.");
- if(!courseLabel)throw new Error("Der sichtbare Kursname fehlt.");
+ // Kursangabe möglichst sicher aus neuen UND älteren Vokabeldateien bestimmen.
+ var rawCourseId=null,courseLabel=null;
+ if(data&&!Array.isArray(data)&&data.course){
+  rawCourseId=data.course.id||data.course.courseId||null;
+  courseLabel=data.course.label||data.course.name||null
+ }
+ if(!rawCourseId&&data&&!Array.isArray(data)&&data.courseId)rawCourseId=data.courseId;
+ if(!courseLabel&&data&&!Array.isArray(data)&&data.label)courseLabel=data.label;
 
+ var entryCourseIds=Array.from(new Set(entries.map(function(e){return e&&e.courseId}).filter(Boolean).map(String)));
+ if(!rawCourseId&&entryCourseIds.length===1)rawCourseId=entryCourseIds[0];
+
+ // Alte Französisch-6-Dateien hatten teilweise fälschlich "franzoesisch" als Kurs-ID.
+ // Wenn der sichtbare Name eindeutig Jahrgang 6 sagt, wird das automatisch repariert.
+ var labelText=String(courseLabel||"").trim();
+ var rawId=String(rawCourseId||"").trim();
+ if((rawId==="franzoesisch"||!rawId) && /franz[oö]sisch\s*6/i.test(labelText)){
+  rawId="franzoesisch-6"
+ }
+ // Auch anhand typischer fr6-IDs / Seiten 176–178 eindeutig erkennen.
+ if(!rawId){
+  var looksFr6=entries.every(function(e){
+   return e && ((String(e.id||"").startsWith("fr6-")) || (Number(e.page)>=176&&Number(e.page)<=178))
+  });
+  if(looksFr6){rawId="franzoesisch-6";if(!labelText)labelText="Französisch 6"}
+ }
+
+ if(!rawId)throw new Error("Der Kurs konnte nicht eindeutig erkannt werden. Bitte eine Datei mit Kursangabe verwenden.");
+ if(!labelText){
+  if(rawId==="franzoesisch-6")labelText="Französisch 6";
+  else{
+   var existingMeta=courses.find(function(c){return c.id===rawId});
+   labelText=existingMeta?(existingMeta.label||existingMeta.name||rawId):rawId
+  }
+ }
+
+ var importedCourse=rawId,courseLabel=labelText;
+
+ // Wenn derselbe Kurs bereits existiert, nicht wegen einer alten Bezeichnung abbrechen.
+ // Die ID ist maßgeblich; die aktuelle sichtbare Bezeichnung wird beibehalten.
  var existingCourse=courses.find(function(c){return c.id===importedCourse});
  if(existingCourse){
-  var existingName=String(existingCourse.label||existingCourse.name||existingCourse.id);
-  if(norm(existingName)!==norm(courseLabel)){
-   throw new Error('Kurs-ID "'+importedCourse+'" existiert bereits als "'+existingName+'". Import abgebrochen, damit keine Kurse vermischt werden.')
-  }
+  courseLabel=String(existingCourse.label||existingCourse.name||courseLabel)
  }
 
  if(!confirm(entries.length+" Vokabeln → "+courseLabel+" importieren?"))return;
 
  var unitNames=new Map();
- if(Array.isArray(data.units))data.units.forEach(function(u){if(u&&u.id)unitNames.set(String(u.id),u.name||u.label||String(u.id))});
- var existing=new Map(vocab.map(function(v){return[v.id,v]})),added=0,skipped=0,invalid=0,generatedIds=0,enriched=0;
+ if(data&&!Array.isArray(data)&&Array.isArray(data.units)){
+  data.units.forEach(function(u){if(u&&u.id)unitNames.set(String(u.id),u.name||u.label||String(u.id))})
+ }
+
+ var existing=new Map(vocab.map(function(v){return[v.id,v]}));
+ var added=0,updated=0,skipped=0,invalid=0,generatedIds=0;
 
  function canonicalLocation(e){
-  var original=String(e.unitId||""),unit=original,part=e.part||null,section=e.sectionName||e.unitName||unitNames.get(original)||null;
+  var original=String(e.unitId||""),unit=original,part=e.part||null;
+  var section=e.sectionName||e.unitName||unitNames.get(original)||null;
 
-  // Legacy-Datei Französisch 6, Buchseiten 176–178: Auftakt vor Unité 1.
-  if(importedCourse==="franzoesisch-6" && (/^p17[678]-/.test(original)||(Number(e.page)>=176&&Number(e.page)<=178))){
+  if(importedCourse==="franzoesisch-6" &&
+     (/^p17[678]-/.test(original)||(Number(e.page)>=176&&Number(e.page)<=178))){
    return{unitId:"unite-0",part:"auftakt",sectionName:section||original}
   }
 
@@ -912,15 +950,20 @@ async function importVocabularyFile(file){
   if(/^unite-\d+$/.test(unit)&&!part)part="sonstiges";
   return{unitId:unit,part:part||"sonstiges",sectionName:section}
  }
+
  function makeId(e,loc,index){
-  var raw=(importedCourse+"-"+loc.unitId+"-"+loc.part+"-"+(e.foreign||"vokabel")).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+  var raw=(importedCourse+"-"+loc.unitId+"-"+loc.part+"-"+(e.foreign||"vokabel"))
+   .toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"")
    .replace(/[’'`´]/g,"-").replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"").slice(0,100);
-  if(!raw)raw=importedCourse+"-vokabel-"+index;var id=raw,n=2;while(existing.has(id)){id=raw+"-"+n;n++}return id
+  if(!raw)raw=importedCourse+"-vokabel-"+index;
+  var id=raw,n=2;while(existing.has(id)){id=raw+"-"+n;n++}
+  return id
  }
 
  for(var i=0;i<entries.length;i++){
   var e=entries[i];
-  if(!e||!e.foreign||!e.unitId){invalid++;continue}
+  if(!e||!String(e.foreign||"").trim()||!e.unitId){invalid++;continue}
+
   var meanings=Array.isArray(e.meanings)?e.meanings:(e.meaning?[e.meaning]:[]);
   meanings=meanings.map(function(x){return String(x).trim()}).filter(Boolean);
   if(!meanings.length){invalid++;continue}
@@ -928,32 +971,67 @@ async function importVocabularyFile(file){
   var loc=canonicalLocation(e);
   if(!/^unite-\d+$/.test(loc.unitId)&&!/^module-[a-z]$/.test(loc.unitId)){invalid++;continue}
 
-  var id=e.id?String(e.id):makeId(e,loc,i+1);if(!e.id)generatedIds++;
+  var id=e.id?String(e.id):makeId(e,loc,i+1);
+  if(!e.id)generatedIds++;
+
   if(existing.has(id)){
-   var oldv=existing.get(id);
-   if(oldv.courseId===importedCourse){
-    var dirty=false;
-    if(!oldv.sectionName&&loc.sectionName){oldv.sectionName=loc.sectionName;dirty=true}
-    if(dirty){await reqP(os(S_VOCAB,"readwrite").put(oldv));enriched++}
+   var oldv=existing.get(id),dirty=false;
+
+   // Alte falsch zugeordnete Französisch-6-Einträge mit derselben ID reparieren,
+   // Lernstand bleibt erhalten, weil die ID nicht verändert wird.
+   if(importedCourse==="franzoesisch-6" && oldv.courseId!==importedCourse &&
+      (String(id).startsWith("fr6-") || (Number(e.page)>=176&&Number(e.page)<=178))){
+    oldv.courseId=importedCourse;dirty=true
    }
-   skipped++;continue
+   if(oldv.unitId!==loc.unitId){oldv.unitId=loc.unitId;dirty=true}
+   if(oldv.part!==loc.part){oldv.part=loc.part;dirty=true}
+   if(!oldv.sectionName&&loc.sectionName){oldv.sectionName=loc.sectionName;dirty=true}
+
+   if(dirty){
+    await reqP(os(S_VOCAB,"readwrite").put(oldv));existing.set(id,oldv);updated++
+   }else skipped++;
+   continue
   }
 
   var v=Object.assign({},e,{
-   id:id,courseId:importedCourse,unitId:loc.unitId,part:loc.part,sectionName:loc.sectionName,
-   foreign:String(e.foreign).trim(),meanings:meanings,importedAt:new Date().toISOString()
+   id:id,
+   courseId:importedCourse,
+   unitId:loc.unitId,
+   part:loc.part,
+   sectionName:loc.sectionName,
+   foreign:String(e.foreign).trim(),
+   meanings:meanings,
+   importedAt:new Date().toISOString()
   });
   delete v.unitName;
-  await reqP(os(S_VOCAB,"readwrite").put(v));existing.set(id,v);added++
+  await reqP(os(S_VOCAB,"readwrite").put(v));
+  existing.set(id,v);added++
  }
 
- var c=Object.assign({},data.course,{id:importedCourse,name:data.course.name||courseLabel,label:courseLabel});
- await reqP(os(S_COURSES,"readwrite").put(c));
+ // Kursmetadaten erst nach erfolgreichem Einlesen schreiben.
+ var courseData=(data&&!Array.isArray(data)&&data.course)?Object.assign({},data.course):{};
+ courseData.id=importedCourse;
+ courseData.name=courseData.name||courseLabel;
+ courseData.label=courseLabel;
+ if(!courseData.learningLocale)courseData.learningLocale="fr-FR";
+ if(!courseData.nativeLocale)courseData.nativeLocale="de-DE";
+ await reqP(os(S_COURSES,"readwrite").put(courseData));
 
- await reload();setActiveCourse(importedCourse);populateCourseSelector();populateAllSelectors();updateCourseLabels();saveSettings();
- $("vocabImportResult").textContent=added+" neue Vokabeln → "+courseLabel+" · "+skipped+" bereits vorhanden · "+invalid+" ungültig"+
-  (generatedIds?" · "+generatedIds+" IDs automatisch erzeugt":"")+(enriched?" · "+enriched+" Metadaten ergänzt":"")+".";
- await renderHome();await renderOverview()
+ // Datenbestand neu laden. Fehler in einer Anzeige darf nicht mehr als "Importfehler"
+ // erscheinen, wenn die Vokabeln bereits erfolgreich gespeichert wurden.
+ await reload();
+ setActiveCourse(importedCourse);
+ try{
+  populateCourseSelector();populateAllSelectors();updateCourseLabels();saveSettings();
+  await renderHome();await renderOverview()
+ }catch(uiErr){
+  console.error("Import erfolgreich, UI-Aktualisierung fehlgeschlagen:",uiErr)
+ }
+
+ $("vocabImportResult").textContent=
+  "Import abgeschlossen: "+added+" neu · "+updated+" repariert/aktualisiert · "+
+  skipped+" bereits vorhanden · "+invalid+" ungültig → "+courseLabel+
+  (generatedIds?" · "+generatedIds+" IDs automatisch erzeugt":"")+".";
 }
 async function restoreBackupFile(file){
  var data=await parseJsonFile(file);
@@ -1070,7 +1148,13 @@ $("exportCourse").onclick=exportCurrentCourse;
 $("reset").onclick=resetAll;
 $("vocabImportFile").onchange=async function(e){
  var f=e.target.files&&e.target.files[0];if(!f)return;
- try{await importVocabularyFile(f)}catch(err){$("vocabImportResult").textContent="Importfehler: "+err.message}
+ $("vocabImportResult").textContent="Importiere "+f.name+" …";
+ try{
+  await importVocabularyFile(f)
+ }catch(err){
+  console.error("Vokabelimport fehlgeschlagen:",err);
+  $("vocabImportResult").textContent="Importfehler: "+(err&&err.message?err.message:String(err))
+ }
  e.target.value=""
 };
 $("backupRestoreFile").onchange=async function(e){
