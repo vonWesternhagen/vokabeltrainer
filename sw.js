@@ -1,6 +1,6 @@
 
-const CACHE="vokabeltrainer-v39";
-const ASSETS=["./","./index.html","./styles.css?v=39","./app.js?v=39","./manifest.webmanifest"];
+const CACHE="vokabeltrainer-v40";
+const ASSETS=["./","./index.html","./styles.css?v=40","./app.js?v=40","./manifest.webmanifest"];
 self.addEventListener("install",e=>{self.skipWaiting();e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS)))});
 self.addEventListener("activate",e=>{e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim()))});
 self.addEventListener("fetch",e=>{

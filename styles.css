@@ -148,3 +148,405 @@ body.trainer-mode .tabs{display:none}
 .success-text{text-align:right;font-weight:800;font-variant-numeric:tabular-nums}
 .success-text.new{color:#6b7280;font-weight:600}
 @media(max-width:700px){.simple-overview{min-width:620px}}
+
+
+/* =========================================================
+   VERSION 4.0 – GELINGENSTRAINER-DESIGN
+   Optik angelehnt an die Master-Vorlage:
+   ruhiger Hintergrund, blaues Verlaufs-Header, Karten, Etappenfarben,
+   klare Fortschrittsanzeige und freundliche Rückmeldungen.
+   ========================================================= */
+
+:root{
+  --bg:#f5f7fb;
+  --card:#ffffff;
+  --ink:#172033;
+  --muted:#68738a;
+  --line:#dfe5ef;
+  --blue:#315ea8;
+  --green:#2d7d5b;
+  --yellow:#a46d00;
+  --orange:#b45726;
+  --purple:#6c4ea1;
+  --cyan:#247b8a;
+  --red:#a83f48;
+  --navy:#243a64;
+  --ok:#237a4b;
+  --warn:#a36b00;
+  --bad:#a63c44;
+  --soft:#eef3fa;
+}
+
+html{background:var(--bg)}
+body{
+  margin:0;
+  padding:20px 16px 52px;
+  font-family:Inter,"Segoe UI",-apple-system,BlinkMacSystemFont,Arial,sans-serif;
+  background:var(--bg);
+  color:var(--ink);
+  line-height:1.45;
+}
+main{max-width:1180px;margin:0 auto}
+
+/* Kopf wie im Gelingenstrainer */
+.page-head{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:18px;
+  background:linear-gradient(135deg,#223b69,#315ea8);
+  color:#fff;
+  border-radius:22px;
+  padding:26px 28px;
+  box-shadow:0 10px 30px rgba(37,62,107,.18);
+}
+.page-head h1{
+  margin:0 0 6px;
+  font-size:clamp(1.65rem,4vw,2.55rem);
+  letter-spacing:-.02em;
+}
+.page-head .sub{color:#e9eefb;margin:4px 0 0;font-size:1rem}
+.header-note{margin:7px 0 0;color:#e7eefb;font-size:.86rem}
+.header-badges{align-self:flex-start}
+.course-badge,.version{
+  border:1px solid rgba(255,255,255,.42);
+  background:rgba(255,255,255,.10);
+  color:#fff;
+  border-radius:10px;
+  padding:7px 10px;
+  font-weight:800;
+  font-size:.85rem;
+}
+.version{background:rgba(20,31,58,.25)}
+
+/* Status als dezente Infozeile */
+.status{
+  margin:12px 2px 8px;
+  padding:9px 12px;
+  border:1px solid #cbdaf3;
+  border-radius:11px;
+  background:#edf4ff;
+  color:#2e4f80;
+  font-size:.83rem;
+  font-weight:650;
+}
+
+/* Navigation wie eine Topbar */
+.tabs{
+  position:sticky;
+  top:0;
+  z-index:10;
+  display:flex;
+  gap:8px;
+  flex-wrap:nowrap;
+  overflow-x:auto;
+  margin:0 0 18px;
+  padding:10px 2px;
+  background:rgba(245,247,251,.96);
+  backdrop-filter:blur(10px);
+}
+.tab{
+  flex:0 0 auto;
+  min-height:42px;
+  border:1px solid var(--line);
+  border-radius:11px;
+  padding:9px 13px;
+  background:#fff;
+  color:var(--ink);
+  font-weight:700;
+  box-shadow:none;
+}
+.tab:hover{background:#f9fbff}
+.tab.active{
+  background:var(--blue);
+  border-color:var(--blue);
+  color:#fff;
+}
+
+/* Allgemeine Karten */
+.card,.home-hero,.trainer-shell{
+  background:var(--card);
+  border:1px solid var(--line);
+  border-radius:18px;
+  box-shadow:0 7px 22px rgba(30,45,75,.06);
+}
+.card{padding:22px;margin-bottom:18px}
+.card h2,.home-hero h2{color:var(--ink)}
+.section-intro{margin:-2px 0 17px;color:var(--muted)}
+.breadcrumb{
+  font-size:.78rem;
+  color:var(--muted);
+  font-weight:800;
+  letter-spacing:.04em;
+  text-transform:uppercase;
+  margin-bottom:4px;
+}
+
+/* Startseite */
+.home-hero{
+  padding:24px 26px;
+  grid-template-columns:1.15fr .85fr;
+  border-top:4px solid var(--blue);
+}
+.home-hero h2{font-size:clamp(1.7rem,4vw,2.1rem);margin:5px 0 5px}
+.home-hero p{color:var(--muted)}
+.eyebrow{color:var(--blue);font-size:.8rem}
+.course-select-label{color:var(--ink)}
+.course-select-label select{background:#fff}
+
+.home-stats{gap:9px}
+.home-stat{
+  background:#f8fafc;
+  border:1px solid var(--line);
+  border-radius:12px;
+  padding:13px;
+}
+.home-stat strong{color:var(--navy)}
+.home-stat:nth-child(2) strong{color:var(--blue)}
+.home-stat:nth-child(3) strong{color:var(--orange)}
+.home-stat:nth-child(4) strong{color:var(--red)}
+
+.home-grid{gap:12px}
+.home-action{
+  position:relative;
+  overflow:hidden;
+  min-height:112px;
+  border:1px solid var(--line);
+  border-radius:14px;
+  background:#fff;
+  padding:18px 19px;
+  color:var(--ink);
+  box-shadow:0 4px 14px rgba(30,45,75,.045);
+  transition:transform .12s ease,box-shadow .12s ease,background .12s ease;
+}
+.home-action::before{
+  content:"";
+  position:absolute;
+  left:0;top:0;bottom:0;
+  width:5px;
+  background:var(--blue);
+}
+.home-action:nth-child(2)::before{background:var(--green)}
+.home-action:nth-child(3)::before{background:var(--orange)}
+.home-action:nth-child(4)::before{background:var(--purple)}
+.home-action:nth-child(5)::before{background:var(--cyan)}
+.home-action:nth-child(6)::before{background:var(--navy)}
+.home-action:hover{
+  transform:translateY(-1px);
+  background:#f9fbff;
+  box-shadow:0 8px 20px rgba(30,45,75,.08);
+}
+.home-action.primary-action{
+  background:#f1f6ff;
+  border-color:#cbdaf3;
+  color:var(--ink);
+}
+.home-action strong{font-size:1.05rem}
+.home-action span:last-child{color:var(--muted);opacity:1;font-size:.84rem}
+.home-icon{
+  width:40px;height:40px;
+  display:grid;place-items:center;
+  border-radius:11px;
+  background:#eef3fa;
+  color:var(--blue);
+  font-size:24px;
+}
+.home-action:nth-child(2) .home-icon{background:#e8f5ee;color:var(--green)}
+.home-action:nth-child(3) .home-icon{background:#fff4d7;color:var(--orange)}
+.home-action:nth-child(4) .home-icon{background:#f2edf9;color:var(--purple)}
+.home-action:nth-child(5) .home-icon{background:#e8f6f8;color:var(--cyan)}
+.home-action:nth-child(6) .home-icon{background:#edf0f5;color:var(--navy)}
+
+/* Formulare */
+label{color:#42506a;font-weight:650}
+select,input[type=text],input[type=date],input[type=search],input[type=number]{
+  border:1px solid #cdd6e3;
+  border-radius:10px;
+  padding:11px 12px;
+  background:#fff;
+  color:var(--ink);
+}
+select:focus,input:focus,textarea:focus{
+  outline:3px solid rgba(49,94,168,.14);
+  border-color:#7c9bc9;
+}
+
+/* Buttons im Stil der Mastervorlage */
+button,.fileButton{
+  border:1px solid var(--line);
+  border-radius:11px;
+  padding:10px 14px;
+  min-height:44px;
+  background:#fff;
+  color:var(--ink);
+  font-weight:700;
+  box-shadow:none;
+}
+button:hover,.fileButton:hover{filter:brightness(.985)}
+.buttons button:first-child:not(.secondary):not(.danger),
+.big-check{
+  background:var(--blue);
+  border-color:var(--blue);
+  color:#fff;
+}
+button.secondary{background:#fff;color:var(--ink);border-color:var(--line)}
+button.danger,.danger-label{background:#fff0f1;color:#8a2f37;border-color:#eac0c5}
+button.danger:hover,.danger-label:hover{background:#ffe7e9}
+
+/* Trainer – ruhig und fokussiert */
+body.trainer-mode{background:var(--bg)}
+body.trainer-mode main{max-width:1020px}
+.trainer-shell{
+  padding:22px;
+  min-height:72vh;
+}
+.trainer-toolbar{
+  padding-bottom:15px;
+  margin-bottom:16px;
+  border-bottom:1px solid var(--line);
+}
+.trainer-breadcrumb{margin-bottom:1px}
+.trainer-scope{color:var(--ink);font-size:1rem}
+.language-chip{
+  background:#eef4ff;
+  border:1px solid #c4d6f2;
+  color:#2e4f80;
+  border-radius:999px;
+  padding:7px 11px;
+}
+.trainer-metric{
+  background:#f8fafc;
+  border:1px solid var(--line);
+  border-radius:12px;
+}
+.trainer-metric strong{color:var(--navy)}
+.progress-track,.progressline{
+  background:#e9edf4;
+  border-radius:99px;
+  height:9px;
+}
+.progress-fill,.progressfill{
+  background:linear-gradient(90deg,var(--green),var(--blue));
+}
+.trainer-status-row .badge,.badge{
+  background:#eef2f8;
+  color:#536076;
+  border-radius:999px;
+  font-weight:750;
+}
+.direction-row{
+  padding:12px 14px;
+  border-radius:12px;
+  background:#f8fafc;
+  border:1px solid var(--line);
+}
+.trainer-prompt{
+  margin:18px 0 14px;
+  min-height:135px;
+  border:1px solid var(--line);
+  border-radius:16px;
+  background:#fff;
+  color:var(--ink);
+  box-shadow:0 4px 14px rgba(30,45,75,.04);
+}
+.trainer-answer{
+  border:2px solid #b5c5e5;
+  border-radius:12px;
+  background:#fff;
+}
+.trainer-answer:focus{
+  outline:4px solid rgba(49,94,168,.12);
+  border-color:var(--blue);
+}
+.workflow-hint{
+  background:#f8fafc;
+  border-left:4px solid #b5c5e5;
+  border-radius:8px;
+  padding:10px 12px;
+  color:var(--muted);
+}
+.feedback{
+  border-radius:12px;
+  border:1px solid var(--line);
+  background:#f8fafc;
+  min-height:0;
+}
+.feedback.good,.good{background:#eaf7f0;border-color:#b9dfca;color:#1f6744}
+.feedback.almost,.almost{background:#fff8e5;border-color:#efd79b;color:#6d4b00}
+.feedback.bad,.bad{background:#fff0f1;border-color:#e9bec3;color:#88343b}
+.round-complete{
+  background:#eef4ff;
+  border-color:#c4d6f2;
+  color:#2e4f80;
+}
+
+/* Klassenarbeit / Vokabeln / Daten */
+.plan-box{
+  background:#edf4ff;
+  border:1px solid #cbdaf3;
+  color:#2e4f80;
+}
+.scope-option,.vocab-item{
+  border-color:var(--line);
+  background:#fff;
+}
+.scope-option:hover,.vocab-item:hover{background:#f9fbff}
+.modal-card{
+  border:1px solid var(--line);
+  box-shadow:0 16px 48px rgba(23,32,51,.22);
+}
+.editor-location{
+  background:#f8fafc;
+  border:1px solid var(--line);
+  color:var(--muted);
+}
+
+/* Übersicht */
+.table-wrap{
+  border:1px solid var(--line);
+  border-radius:14px;
+  overflow:auto;
+  background:#fff;
+}
+table{min-width:720px}
+th{
+  background:#f8fafc;
+  color:#536076;
+  font-size:.78rem;
+  text-transform:uppercase;
+  letter-spacing:.03em;
+}
+th,td{border-bottom:1px solid var(--line);padding:11px 10px}
+tbody tr:hover{background:#fbfcfe}
+.success-bar{
+  background:linear-gradient(90deg,#c84545 0%,#e2b83b 50%,#4caa62 100%);
+}
+.success-marker{background:#172033}
+
+/* Kleine Status-/Hinweisbausteine */
+.small,.muted{color:var(--muted)}
+.auto-row{
+  padding:9px 11px;
+  border-radius:10px;
+  background:#f8fafc;
+  border:1px solid var(--line);
+}
+.status:empty{display:none}
+
+@media(max-width:880px){
+  .page-head{padding:22px}
+  .home-hero{grid-template-columns:1fr}
+}
+@media(max-width:650px){
+  body{padding:12px 10px 40px}
+  .page-head{padding:20px;border-radius:18px}
+  .page-head{flex-direction:column}
+  .header-badges{justify-content:flex-start}
+  .home-grid{grid-template-columns:1fr}
+  .home-action{min-height:100px}
+  .trainer-shell{padding:15px}
+  .trainer-toolbar{grid-template-columns:1fr}
+  .language-chip{grid-column:auto}
+  .trainer-metrics{gap:7px}
+  .trainer-metric strong{font-size:1.35rem}
+}

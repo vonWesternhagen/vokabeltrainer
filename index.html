@@ -7,17 +7,18 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Vokabeltrainer">
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="stylesheet" href="styles.css?v=39">
-  <title>Vokabeltrainer – Prototyp 3.9</title>
+  <link rel="stylesheet" href="styles.css?v=40">
+  <title>Vokabeltrainer – Version 4.0</title>
 </head>
 <body>
 <main>
   <header class="page-head">
     <div>
       <h1>Vokabeltrainer</h1>
-      <p class="sub">Prototyp 3.9 · Lernbereiche · Lernreihenfolge · Schwächenfokus · Klassenarbeit · Statistik</p>
+      <p class="sub">Schritt für Schritt sicherer werden · mit deinem eigenen Lerntempo</p>
+      <p class="header-note">Wähle deinen Lernweg, übe gezielt und sieh sofort, was schon sicher sitzt.</p>
     </div>
-    <div class="header-badges"><span class="course-badge" id="activeCourseBadge">Noch kein Kurs</span><span class="version">v3.9</span></div>
+    <div class="header-badges"><span class="course-badge" id="activeCourseBadge">Noch kein Kurs</span><span class="version">v4.0</span></div>
   </header>
 
   <div id="appStatus" class="status">JavaScript startet …</div>
@@ -36,8 +37,8 @@
     <section class="home-hero">
       <div>
         <span class="eyebrow" id="homeCourseLabel">Noch kein Kurs</span>
-        <h2>Was möchtest du machen?</h2>
-        <p>Der Trainer merkt sich Lernstände, Fälligkeiten und deine letzte Auswahl.</p>
+        <h2>Dein Lernweg</h2>
+        <p>Starte dort, wo du gerade stehst. Der Trainer merkt sich deinen Lernstand und zeigt dir, was als Nächstes sinnvoll ist.</p>
         <label class="course-select-label">Aktiver Kurs
           <select id="activeCourseSelect"></select>
         </label>
@@ -53,11 +54,11 @@
     <section class="home-grid">
       <button id="homeLearn" class="home-action primary-action" type="button">
         <span class="home-icon">✎</span><strong>Lernen</strong>
-        <span>Unité, Volet, Richtung und Anzahl auswählen</span>
+        <span>Stoff auswählen und eine neue Lernrunde starten</span>
       </button>
       <button id="homeDueLearn" class="home-action" type="button">
         <span class="home-icon">↻</span><strong>Heute lernen</strong>
-        <span>Neue, fällige und schwache Vokabeln priorisieren</span>
+        <span>Direkt mit den Vokabeln weitermachen, die heute wichtig sind</span>
       </button>
       <button id="homePlan" class="home-action" type="button">
         <span class="home-icon">□</span><strong>Klassenarbeit</strong>
@@ -69,7 +70,7 @@
       </button>
       <button id="homeOverview" class="home-action" type="button">
         <span class="home-icon">◎</span><strong>Übersicht</strong>
-        <span>Lernstände und schwierige Vokabeln ansehen</span>
+        <span>Auf einen Blick sehen, was schon sicher sitzt</span>
       </button>
       <button id="homeData" class="home-action" type="button">
         <span class="home-icon">⇩</span><strong>Daten & Backup</strong>
@@ -80,7 +81,9 @@
 
   <section id="learnView" hidden>
     <section class="card">
-      <h2>Lernsession einstellen</h2>
+      <div class="breadcrumb">Lernrunde vorbereiten</div>
+      <h2>Wie möchtest du heute lernen?</h2>
+      <p class="section-intro">Wähle Bereich, Richtung und Umfang. Danach öffnet sich die ruhige Schreibansicht.</p>
       <div class="form-grid">
         <label>Unité / Modul
           <select id="unitSelect"></select>
@@ -213,7 +216,7 @@
 
   <section id="planView" hidden>
     <section class="card">
-      <h2>Klassenarbeit planen</h2>
+      <div class="breadcrumb">Planen</div><h2>Klassenarbeit vorbereiten</h2>
       <div class="form-grid compact">
         <label>Datum
           <input id="examDate" type="date">
@@ -241,7 +244,7 @@
     <section class="card">
       <div class="overview-head">
         <div>
-          <h2>Lernübersicht</h2>
+          <div class="breadcrumb">Dein Fortschritt</div><h2>Was sitzt schon sicher?</h2>
           <p class="small">Je grüner der Balken, desto sicherer sitzt die Vokabel. Noch nicht geübte Vokabeln sind grau.</p>
         </div>
         <button id="refreshOverview" type="button" class="secondary">Aktualisieren</button>
@@ -272,7 +275,7 @@
     <section class="card">
       <div class="overview-head">
         <div>
-          <h2>Vokabeln bearbeiten</h2>
+          <div class="breadcrumb">Wortschatz</div><h2>Vokabeln bearbeiten</h2>
           <p class="small">Suche auf Deutsch oder Französisch. Tippe anschließend auf einen Treffer.</p>
         </div>
       </div>
@@ -327,7 +330,7 @@
 
   <section id="dataView" hidden>
     <section class="card">
-      <h2>Neue Vokabeln additiv einlesen</h2>
+      <div class="breadcrumb">Daten</div><h2>Neue Vokabeln additiv einlesen</h2>
       <p class="small">
         Dieser Import fügt <strong>nur neue Vokabeln</strong> hinzu. Bereits vorhandene IDs werden nicht verändert.
         Damit bleiben manuelle Korrekturen und Verschiebungen erhalten. Lernstände werden hier niemals importiert oder überschrieben.
@@ -367,6 +370,6 @@
     </section>
   </section>
 </main>
-<script src="app.js?v=39"></script>
+<script src="app.js?v=40"></script>
 </body>
 </html>
