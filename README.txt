@@ -1,32 +1,17 @@
-Vokabeltrainer 3.7 – Startseite und Pencil-Workflow
+Vokabeltrainer 3.8
 
-Neu:
-- richtige Startoberfläche mit großen Bereichen: Lernen, Heute lernen, Klassenarbeit,
-  Vokabeln bearbeiten, Übersicht, Daten & Backup.
-- "Lernen" führt zuerst zur Session-Auswahl; nach Sessionstart öffnet sich eine eigene,
-  deutlich reduzierte Lernansicht.
-- Lernansicht zeigt groß:
-  * aktuelle Vokabel,
-  * Fortschritt (z. B. 7 / 20 verschiedene),
-  * Trefferquote,
-  * Gesamtzahl der Abfragen,
-  * Lernstufe und Richtung.
-- Fokusverbesserung für Apple Pencil / Scribble:
-  * Antwortfeld erhält bei DE→FR lang="fr-FR", bei FR→DE lang="de-DE".
-  * auch die Dokument-Sprache wird während der Antwort passend gesetzt.
-  * der Fokus wird nach jedem Schritt wieder im Antwortfeld gehalten.
-  * Trainerbuttons verhindern nach Möglichkeit, dass ein Pencil-/Touch-Tipp den Fokus dauerhaft übernimmt.
-- Neuer flüssiger Workflow:
-  * exakt richtige Antworten werden nach 550 ms Schreibpause automatisch erkannt.
-  * bei aktivem "automatisch weiter" erscheint sofort die nächste Vokabel.
-  * Return prüft eine Antwort.
-  * nach einer falschen/fast richtigen Antwort führt Return zur nächsten Vokabel.
-  * "Weiß ich nicht / Antwort zeigen" bleibt als große Alternative.
-- iPad-Hinweis:
-  Eine Webseite kann die aktive iPad-Tastatursprache nicht erzwingen. Für Scribble ist weiterhin
-  die in iPadOS aktive Eingabesprache entscheidend. Die App gibt jetzt aber alle verfügbaren
-  Sprachhinweise und vermeidet unnötige Fokuswechsel.
+Korrekturen:
+- Keine drei fest eingebauten Startvokabeln mehr.
+- "Alle lokalen Daten löschen" löscht Vokabeln, Lernstände und Klassenarbeiten wirklich vollständig.
+- Der additive Vokabelimport akzeptiert jetzt auch Dateien ohne id-Feld.
+  Falls eine ID fehlt, erzeugt die App automatisch eine stabile lokale ID aus Kurs/Bereich/Vokabel.
+- Der Import zeigt künftig getrennt:
+  hinzugefügt / schon vorhanden / ungültig / IDs automatisch erzeugt.
+- Kurs-ID aus der Vokabeldatei wird übernommen.
 
-Update:
-index.html, styles.css, app.js, manifest.webmanifest und sw.js ersetzen.
-Danach mit ?v=37 öffnen.
+Französisch-6-Datei:
+Die bisherige Datei enthielt 79 Einträge, aber bei keinem Eintrag ein id-Feld.
+Version 3.7 hat deshalb alle 79 Einträge übersprungen.
+Eine korrigierte Datei mit IDs wurde separat erzeugt.
+
+Nach Upload mit ?v=38 öffnen.
