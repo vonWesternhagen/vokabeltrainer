@@ -1,17 +1,25 @@
-Vokabeltrainer 3.8
+Vokabeltrainer 3.9 – Kursstabilität und vereinfachte Übersicht
+
+Fehlerursache:
+V3.8 speicherte Französisch 6 korrekt unter courseId "franzoesisch-6", die Oberfläche filterte
+aber weiterhin fest nach "franzoesisch". Dadurch waren die 79 Vokabeln gespeichert, aber unsichtbar.
+Alte Cache-/Prototypstände konnten zusätzlich die drei Startvokabeln zeigen.
 
 Korrekturen:
-- Keine drei fest eingebauten Startvokabeln mehr.
-- "Alle lokalen Daten löschen" löscht Vokabeln, Lernstände und Klassenarbeiten wirklich vollständig.
-- Der additive Vokabelimport akzeptiert jetzt auch Dateien ohne id-Feld.
-  Falls eine ID fehlt, erzeugt die App automatisch eine stabile lokale ID aus Kurs/Bereich/Vokabel.
-- Der Import zeigt künftig getrennt:
-  hinzugefügt / schon vorhanden / ungültig / IDs automatisch erzeugt.
-- Kurs-ID aus der Vokabeldatei wird übernommen.
+- kein fest verdrahteter Kurs mehr
+- Startseite: Auswahl "Aktiver Kurs"
+- Import macht den importierten Kurs automatisch aktiv
+- Französisch 6 und Französisch 10 können getrennt nebeneinander bestehen
+- alte Startvokabeln le projet / le métier / le domaine werden beim Start endgültig entfernt
+- "Alle lokalen Daten löschen" hinterlässt einen wirklich leeren Trainer
+- keine automatische Wiederanlage eines Kurses oder von Startvokabeln
+- Status zeigt aktiven Kurs und tatsächliche Vokabelzahl
 
-Französisch-6-Datei:
-Die bisherige Datei enthielt 79 Einträge, aber bei keinem Eintrag ein id-Feld.
-Version 3.7 hat deshalb alle 79 Einträge übersprungen.
-Eine korrigierte Datei mit IDs wurde separat erzeugt.
+Übersicht:
+- nur Französisch | Deutsch | Lernerfolg
+- Rot→Gelb→Grün-Balken mit Marker und Prozentzahl
+- ungeübte Vokabeln: grau / "neu"
+- Quote = (richtig + 0,5 × fast richtig) / alle Abfragen
+- sortierbar nach Buchreihenfolge, Erfolg niedrig/hoch und alphabetisch
 
-Nach Upload mit ?v=38 öffnen.
+Nach Upload mit ?v=39 öffnen.

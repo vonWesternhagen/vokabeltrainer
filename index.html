@@ -7,17 +7,17 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Vokabeltrainer">
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="stylesheet" href="styles.css?v=38">
-  <title>Vokabeltrainer – Prototyp 3.8</title>
+  <link rel="stylesheet" href="styles.css?v=39">
+  <title>Vokabeltrainer – Prototyp 3.9</title>
 </head>
 <body>
 <main>
   <header class="page-head">
     <div>
       <h1>Vokabeltrainer</h1>
-      <p class="sub">Prototyp 3.8 · Lernbereiche · Lernreihenfolge · Schwächenfokus · Klassenarbeit · Statistik</p>
+      <p class="sub">Prototyp 3.9 · Lernbereiche · Lernreihenfolge · Schwächenfokus · Klassenarbeit · Statistik</p>
     </div>
-    <div class="header-badges"><span class="course-badge">Französisch 10</span><span class="version">v3.8</span></div>
+    <div class="header-badges"><span class="course-badge" id="activeCourseBadge">Noch kein Kurs</span><span class="version">v3.9</span></div>
   </header>
 
   <div id="appStatus" class="status">JavaScript startet …</div>
@@ -35,9 +35,12 @@
   <section id="homeView">
     <section class="home-hero">
       <div>
-        <span class="eyebrow">Französisch 10</span>
+        <span class="eyebrow" id="homeCourseLabel">Noch kein Kurs</span>
         <h2>Was möchtest du machen?</h2>
         <p>Der Trainer merkt sich Lernstände, Fälligkeiten und deine letzte Auswahl.</p>
+        <label class="course-select-label">Aktiver Kurs
+          <select id="activeCourseSelect"></select>
+        </label>
       </div>
       <div class="home-stats">
         <div class="home-stat"><strong id="homeTotal">0</strong><span>Vokabeln</span></div>
@@ -239,41 +242,26 @@
       <div class="overview-head">
         <div>
           <h2>Lernübersicht</h2>
-          <p class="small">Filter gelten nur für die Anzeige.</p>
+          <p class="small">Je grüner der Balken, desto sicherer sitzt die Vokabel. Noch nicht geübte Vokabeln sind grau.</p>
         </div>
         <button id="refreshOverview" type="button" class="secondary">Aktualisieren</button>
       </div>
-
       <div class="form-grid compact">
         <label>Unité / Modul <select id="overviewUnit"></select></label>
         <label>Teilbereich <select id="overviewPart"></select></label>
         <label>Sortierung
           <select id="overviewSort">
             <option value="book">Buchreihenfolge</option>
-            <option value="weakest">schwierigste zuerst</option>
+            <option value="weakest">Erfolg: niedrig → hoch</option>
+            <option value="strongest">Erfolg: hoch → niedrig</option>
+            <option value="french">Französisch A–Z</option>
+            <option value="german">Deutsch A–Z</option>
           </select>
         </label>
       </div>
-
-      <div class="summary-grid">
-        <div class="summary-box"><span id="sumEntries">0</span><small>Vokabeln</small></div>
-        <div class="summary-box"><span id="sumAttempts">0</span><small>Abfragen</small></div>
-        <div class="summary-box"><span id="sumCorrect">0</span><small>richtig</small></div>
-        <div class="summary-box"><span id="sumWrong">0</span><small>falsch/fast</small></div>
-      </div>
-
       <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Bereich</th>
-              <th>Vokabel</th>
-              <th>DE→FR</th>
-              <th>FR→DE</th>
-              <th>Gesamt</th>
-              <th>nächste Wdh.</th>
-            </tr>
-          </thead>
+        <table class="simple-overview">
+          <thead><tr><th>Französisch</th><th>Deutsch</th><th>Lernerfolg</th></tr></thead>
           <tbody id="overviewBody"></tbody>
         </table>
       </div>
@@ -379,6 +367,6 @@
     </section>
   </section>
 </main>
-<script src="app.js?v=38"></script>
+<script src="app.js?v=39"></script>
 </body>
 </html>
