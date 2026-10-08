@@ -1,20 +1,18 @@
-Vokabeltrainer 4.4 – Import robust repariert
+Vokabeltrainer 4.5 – Startfehler behoben
 
-Ursache:
-Der Import in V4.3 war zu streng. Ältere, grundsätzlich gültige Vokabeldateien konnten
-wegen früherer Kurskennzeichnungen (z. B. "franzoesisch" statt "franzoesisch-6")
-abgewiesen werden.
+Gefundene Ursache:
+Beim Struktur-Umbau in V4.3 wurde die Funktion populateUnit() versehentlich entfernt.
+Die Oberfläche rief sie beim Start weiterhin auf. Dadurch:
+- Startfehler „Can't find variable: populateUnit“
+- keine Optionen unter „Unité / Modul“
 
-Neu:
-- akzeptiert das aktuelle Importformat und ältere Vokabeldateien
-- erkennt Französisch 6 zusätzlich an Kursname, fr6-IDs und Seiten 176–178
-- normalisiert ältere Französisch-6-Kurs-ID automatisch auf "franzoesisch-6"
-- Seiten 176–178 werden zuverlässig Unité 0 / Auftakt
-- bereits vorhandene Einträge mit identischer ID können repariert/umgehängt werden,
-  ohne ihren Lernstand zu verlieren
-- abweichende alte Kursbezeichnungen führen nicht mehr unnötig zum Abbruch
-- Importer zeigt getrennt: neu / repariert / vorhanden / ungültig
-- ein Fehler bei der anschließenden UI-Aktualisierung wird nicht mehr fälschlich
-  als fehlgeschlagener Import gemeldet
+Behoben:
+- populateUnit() vollständig wiederhergestellt.
+- „Alle Vokabeln“ + vorhandene Unités/Module werden wieder aufgebaut.
+- Französisch 6 mit den aktuellen 79 Vokabeln ergibt:
+  „Alle Vokabeln“ und „Unité 0“.
+- Unité 0 setzt den Teilbereich automatisch auf „Auftakt“.
+- zusätzlich einen alten, nicht mehr gültigen startSession()-Aufruf nach Backup-Wiederherstellung entfernt.
+- populateAllSelectors() defensiver gemacht.
 
-Nach GitHub-Upload mit ?v=44 öffnen.
+Nach GitHub-Upload mit ?v=45 öffnen.

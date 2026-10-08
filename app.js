@@ -1,7 +1,7 @@
 (function(){
 "use strict";
 
-var APP_VERSION="4.4";
+var APP_VERSION="4.5";
 var DB_NAME="VokabeltrainerTest";
 var DB_VERSION=2;
 var S_VOCAB="vocab",S_PROGRESS="progress",S_COURSES="courses",S_EXAMS="exams";
@@ -237,6 +237,13 @@ function unitsForCourse(courseId){
    if(am)return-1;if(bm)return 1;
    return String(a).localeCompare(String(b))
   })
+}
+function populateUnit(sel,courseId,includeAll){
+ var units=unitsForCourse(courseId);
+ fillSelect(sel,units.map(function(x){return{value:x,label:unitLabel(x)}}),includeAll?"Alle Vokabeln":null);
+ if(sel&&!sel.options.length){
+  var empty=document.createElement("option");empty.value="";empty.textContent="Keine Bereiche vorhanden";sel.appendChild(empty)
+ }
 }
 function partsFor(courseId,unit){
  if(/^module-[a-z]$/.test(unit)||unit==="unite-0")return unit==="unite-0"?["auftakt"]:[];
@@ -683,7 +690,7 @@ async function renderHome(){
   var days=Math.max(0,Math.ceil((new Date(e.date+"T12:00:00")-new Date())/86400000));
   $("homeExamText").textContent="Klassenarbeit in "+days+" Tag"+(days===1?"":"en")+" · Lernpensum planen"
  }else $("homeExamText").textContent="Stoff und Lernpensum planen";
- $("appStatus").textContent="✓ Version 4.4 läuft · "+(cid?courseName(cid)+" · "+all.length+" Vokabeln":"noch keine Vokabeln importiert")
+ $("appStatus").textContent="✓ Version 4.5 läuft · "+(cid?courseName(cid)+" · "+all.length+" Vokabeln":"noch keine Vokabeln importiert")
 }
 async function switchActiveCourse(id){
  setActiveCourse(id);saveSettings();populateAllSelectors();updateCourseLabels();await renderHome()
@@ -1049,7 +1056,7 @@ async function restoreBackupFile(file){
  if(data.settings){try{localStorage.setItem(SETTINGS_KEY,JSON.stringify(data.settings))}catch(e){}}
  await reload();applySettings(data.settings||loadSavedSettings());populateCourseSelector();populateAllSelectors();await renderOverview();await renderExamSummary();
  $("backupResult").textContent="Backup vollständig wiederhergestellt: "+data.entries.length+" Vokabeln und "+(data.progress||[]).length+" Lernstände.";
- await startSession()
+ showView("home");await renderHome()
 }
 async function resetAll(){
  if(!confirm("Alle lokalen Vokabeln, Lernstände, Kurse und Klassenarbeiten wirklich löschen?"))return;
@@ -1061,8 +1068,10 @@ async function resetAll(){
 
 function populateAllSelectors(){
  var cid=activeCourseId();
- populateUnit($("unitSelect"),cid,true);populatePart($("partSelect"),cid,$("unitSelect").value,true);
- populateUnit($("overviewUnit"),cid,true);populatePart($("overviewPart"),cid,$("overviewUnit").value,true);
+ populateUnit($("unitSelect"),cid,true);
+ populatePart($("partSelect"),cid,$("unitSelect").value||"alle",true);
+ populateUnit($("overviewUnit"),cid,true);
+ populatePart($("overviewPart"),cid,$("overviewUnit").value||"alle",true);
  populateExamScopes([])
 }
 function bindUnitPart(unitId,partId,afterChange){
