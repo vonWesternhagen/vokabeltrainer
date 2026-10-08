@@ -7,17 +7,17 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Vokabeltrainer">
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="stylesheet" href="styles.css?v=33">
-  <title>Vokabeltrainer – Prototyp 3.3</title>
+  <link rel="stylesheet" href="styles.css?v=34">
+  <title>Vokabeltrainer – Prototyp 3.4</title>
 </head>
 <body>
 <main>
   <header class="page-head">
     <div>
       <h1>Vokabeltrainer</h1>
-      <p class="sub">Prototyp 3.3 · Lernbereiche · Lernreihenfolge · Schwächenfokus · Klassenarbeit · Statistik</p>
+      <p class="sub">Prototyp 3.4 · Lernbereiche · Lernreihenfolge · Schwächenfokus · Klassenarbeit · Statistik</p>
     </div>
-    <span class="version">v3.3</span>
+    <span class="version">v3.4</span>
   </header>
 
   <div id="appStatus" class="status">JavaScript startet …</div>
@@ -61,11 +61,19 @@
             <option value="test">Test</option>
           </select>
         </label>
+        <label>Anzahl verschiedener Vokabeln
+          <input id="distinctCount" type="number" min="1" step="1" value="20" inputmode="numeric">
+        </label>
       </div>
       <label class="auto-row">
         <input type="checkbox" id="adaptiveAfterFirst" checked>
         Nach der ersten vollständigen Runde automatisch die schlechtesten Vokabeln priorisieren
       </label>
+      <p class="small">
+        Die Zahl legt fest, wie viele <strong>verschiedene</strong> Vokabeln die Session enthält.
+        Im Lernmodus wird jede davon zuerst einmal abgefragt; danach werden schwächere Vokabeln häufiger,
+        aber mit genügend Abwechslung wiederholt. Im Testmodus endet die Session nach genau dieser ersten Runde.
+      </p>
       <div class="buttons">
         <button id="startSession" type="button">Session starten / neu starten</button>
       </div>
@@ -231,6 +239,6 @@
     </section>
   </section>
 </main>
-<script src="app.js?v=33"></script>
+<script src="app.js?v=34"></script>
 </body>
 </html>

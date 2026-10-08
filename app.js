@@ -9,11 +9,11 @@ var db=null, vocab=[], courses=[];
 var FIXED_COURSE_ID="franzoesisch";
 var session={
   active:false, pool:[], firstQueue:[], seen:{}, current:null, currentDirection:"DE_FR",
-  attempts:0, correct:0, testResults:[], lastId:null
+  attempts:0, correct:0, testResults:[], lastId:null, recentIds:[]
 };
 var autoTimer=null;
 
-var seedCourse={id:"franzoesisch",name:"Französisch",learningLocale:"fr-FR",nativeLocale:"de-DE"};
+var seedCourse={id:"franzoesisch",name:"Französisch 10",learningLocale:"fr-FR",nativeLocale:"de-DE"};
 var seed=[
 {id:"le-projet",courseId:"franzoesisch",unitId:"unite-1-auftakt",foreign:"le projet",meanings:["der Plan","das Vorhaben","das Projekt"]},
 {id:"le-metier",courseId:"franzoesisch",unitId:"unite-1-auftakt",foreign:"le métier",meanings:["der Beruf"]},
@@ -74,7 +74,7 @@ async function reload(){
      if(c && c.id) cs.delete(c.id);
    }
  });
- var fr={id:"franzoesisch",name:"Französisch",learningLocale:"fr-FR",nativeLocale:"de-DE"};
+ var fr={id:"franzoesisch",name:"Französisch 10",learningLocale:"fr-FR",nativeLocale:"de-DE"};
  cs.put(fr);
  await new Promise(function(resolve,reject){
    ctx.oncomplete=resolve;
@@ -174,10 +174,33 @@ function currentScopeText(){
  return c+" · "+u+" · "+p
 }
 async function startSession(){
- var pool=filtered(FIXED_COURSE_ID,$("unitSelect").value,$("partSelect").value);
- if(!pool.length){$("scopeInfo").textContent="Für diese Auswahl gibt es keine Vokabeln.";return}
- session={active:true,pool:pool,firstQueue:await orderPool(pool,$("orderSelect").value,$("directionSelect").value),seen:{},current:null,currentDirection:"DE_FR",attempts:0,correct:0,testResults:[],lastId:null};
- $("scopeInfo").textContent=currentScopeText()+" · "+pool.length+" Vokabeln. Jede wird in dieser Session mindestens einmal abgefragt.";
+ var available=filtered(FIXED_COURSE_ID,$("unitSelect").value,$("partSelect").value);
+ if(!available.length){$("scopeInfo").textContent="Für diese Auswahl gibt es keine Vokabeln.";return}
+
+ var requested=parseInt($("distinctCount").value,10);
+ if(!Number.isFinite(requested)||requested<1) requested=available.length;
+ requested=Math.min(requested,available.length);
+
+ // Die Reihenfolge bestimmt zugleich, welche Vokabeln in die begrenzte Session kommen.
+ var ordered=await orderPool(available,$("orderSelect").value,$("directionSelect").value);
+ var pool=ordered.slice(0,requested);
+
+ session={
+   active:true,
+   pool:pool,
+   firstQueue:pool.slice(),
+   seen:{},
+   current:null,
+   currentDirection:"DE_FR",
+   attempts:0,
+   correct:0,
+   testResults:[],
+   lastId:null,
+   recentIds:[]
+ };
+ $("scopeInfo").textContent=currentScopeText()+" · "+pool.length+" verschiedene Vokabeln ausgewählt"
+   +(available.length>pool.length?" (von "+available.length+" verfügbaren).":".")
+   +" Jede wird zuerst genau einmal abgefragt.";
  await chooseNext(true)
 }
 function chooseDirection(){
@@ -188,28 +211,54 @@ function chooseDirection(){
 async function chooseNext(initial){
  if(!session.active)return;
  var v=null;
+
+ // Erste Runde: garantiert jede ausgewählte Vokabel genau einmal.
  while(session.firstQueue.length){
    var candidate=session.firstQueue.shift();
    if(!session.seen[candidate.id]){v=candidate;break}
  }
+
  if(!v){
    if($("sessionTypeSelect").value==="test"){
       finishTest();return
    }
+
    if($("adaptiveAfterFirst").checked){
-     var scored=[];for(var x of session.pool){
-       if(x.id===session.lastId&&session.pool.length>1)continue;
+     var scored=[];
+     for(var x of session.pool){
        scored.push([x,await weakScore(x,$("directionSelect").value)])
      }
      scored.sort((a,b)=>a[1]-b[1]);
-     var band=scored.slice(0,Math.min(5,scored.length));
-     v=band[Math.floor(Math.random()*band.length)][0]
+
+     // Nicht immer nur dieselben 5 Vokabeln:
+     // 70 % der nächsten Fragen kommen aus der schwächeren Hälfte,
+     // 30 % aus dem restlichen Session-Pool. Die letzten 4 Vokabeln
+     // werden nach Möglichkeit nicht sofort wiederholt.
+     var recent=new Set(session.recentIds||[]);
+     var candidates=scored.map(x=>x[0]).filter(x=>!recent.has(x.id));
+     if(!candidates.length)candidates=scored.map(x=>x[0]);
+
+     var weakCount=Math.max(3,Math.ceil(session.pool.length*0.5));
+     weakCount=Math.min(weakCount,session.pool.length);
+     var weakIds=new Set(scored.slice(0,weakCount).map(x=>x[0].id));
+     var weakCandidates=candidates.filter(x=>weakIds.has(x.id));
+
+     if(Math.random()<0.70 && weakCandidates.length){
+       v=weakCandidates[Math.floor(Math.random()*weakCandidates.length)]
+     }else{
+       v=candidates[Math.floor(Math.random()*candidates.length)]
+     }
    }else{
      var ord=await orderPool(session.pool,$("orderSelect").value,$("directionSelect").value);
-     v=ord.find(x=>x.id!==session.lastId)||ord[0]
+     var recentSet=new Set(session.recentIds||[]);
+     v=ord.find(x=>!recentSet.has(x.id)) || ord.find(x=>x.id!==session.lastId) || ord[0]
    }
  }
- session.current=v;session.currentDirection=chooseDirection();session.lastId=v.id;
+
+ session.current=v;
+ session.currentDirection=chooseDirection();
+ session.lastId=v.id;
+ session.recentIds=(session.recentIds||[]).concat([v.id]).slice(-4);
  await renderCurrent()
 }
 async function renderCurrent(){
@@ -226,8 +275,8 @@ async function renderCurrent(){
 }
 function updateSessionBadges(){
  var seenCount=Object.keys(session.seen).length;
- $("sessionCoverage").textContent=seenCount+" / "+session.pool.length+" einmal gesehen";
- $("sessionScore").textContent="Session: "+session.correct+" richtig / "+session.attempts
+ $("sessionCoverage").textContent=seenCount+" / "+session.pool.length+" verschiedene gesehen";
+ $("sessionScore").textContent="Session: "+session.attempts+" Abfragen · "+session.correct+" richtig"
 }
 function keepFocus(){setTimeout(()=>{try{$("answer").focus({preventScroll:true})}catch(e){$("answer").focus()}},30)}
 function nextDue(level){
@@ -285,7 +334,7 @@ function editVocab(v){$("editCard").hidden=false;$("editId").value=v.id;$("editF
 async function saveEdit(){var id=$("editId").value,v=vocab.find(x=>x.id===id);if(!v)return;v.foreign=$("editForeign").value.trim();v.meanings=$("editMeanings").value.split(";").map(x=>x.trim()).filter(Boolean);await reqP(os(S_VOCAB,"readwrite").put(v));await reload();$("editCard").hidden=true;renderVocab()}
 async function importJson(file){
  var data=JSON.parse(await file.text());if(!Array.isArray(data.entries))throw new Error("Kein entries-Array gefunden.");
- var c=data.course||{id:"import",name:"Import"};await reqP(os(S_COURSES,"readwrite").put({id:c.id||"import",name:c.name||c.id||"Import",learningLocale:c.learningLocale||"fr-FR",nativeLocale:c.nativeLocale||"de-DE"}));
+ var c=data.course||{id:"import",name:"Import"};await reqP(os(S_COURSES,"readwrite").put({id:c.id||"import",name:(c.id==="franzoesisch"?"Französisch 10":(c.name||c.id||"Import")),learningLocale:c.learningLocale||"fr-FR",nativeLocale:c.nativeLocale||"de-DE"}));
  var tx=db.transaction(S_VOCAB,"readwrite"),s=tx.objectStore(S_VOCAB),count=0;
  data.entries.forEach(e=>{if(!e.id||!e.foreign||!Array.isArray(e.meanings)||!e.meanings.length)return;s.put({id:String(e.id),courseId:e.courseId||c.id||"import",unitId:e.unitId||data.unit?.id||"import",foreign:String(e.foreign),meanings:e.meanings.map(String)});count++});
  await new Promise((res,rej)=>{tx.oncomplete=res;tx.onerror=()=>rej(tx.error)});await reload();populateAllSelectors();$("importResult").textContent=count+" Vokabeln importiert/aktualisiert."
@@ -293,11 +342,11 @@ async function importJson(file){
 async function downloadJson(data,name){var blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"}),url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000)}
 async function exportBackup(){
  var entries=await reqP(os(S_VOCAB).getAll()),progress=await reqP(os(S_PROGRESS).getAll()),exams=await reqP(os(S_EXAMS).getAll()),cs=await reqP(os(S_COURSES).getAll());
- downloadJson({schemaVersion:3,exportedAt:new Date().toISOString(),courses:cs,entries:entries,progress:progress,exams:exams},"vokabeltrainer-backup.json")
+ downloadJson({schemaVersion:4,exportedAt:new Date().toISOString(),courses:cs,entries:entries,progress:progress,exams:exams},"vokabeltrainer-backup.json")
 }
 async function exportCurrentCourse(){
  var cid=FIXED_COURSE_ID,c=courses.find(x=>x.id===cid),entries=vocab.filter(v=>v.courseId===cid),progress=(await reqP(os(S_PROGRESS).getAll())).filter(p=>entries.some(v=>v.id===p.id));
- downloadJson({schemaVersion:3,course:c,entries:entries,progress:progress},"vokabeltrainer-"+cid+".json")
+ downloadJson({schemaVersion:4,course:Object.assign({},c,{name:"Französisch 10",schoolYearLabel:"Französisch 10"}),entries:entries,progress:progress},"vokabeltrainer-franzoesisch-10.json")
 }
 async function resetAll(){
  if(!confirm("Alle lokalen Daten löschen und nur die drei Testvokabeln wiederherstellen?"))return;
@@ -352,7 +401,7 @@ $("jsonFile").onchange=async e=>{var f=e.target.files&&e.target.files[0];if(!f)r
   bindUnitPart("examUnit","examPart",false,renderExamSummary);
   bindUnitPart("overviewUnit","overviewPart",true,renderOverview);
   bindUnitPart("vocabUnit","vocabPart",true,renderVocab);
-  $("appStatus").textContent="✓ Version 3.3 läuft. Kurs ist fest auf Französisch gesetzt. IndexedDB ist verfügbar.";
+  $("appStatus").textContent="✓ Version 3.4 läuft. Französisch 10 · unterschiedliche Vokabeln begrenzbar · Wiederholungen diversifiziert.";
   await startSession()
  }catch(err){$("appStatus").textContent="Startfehler: "+err.message;$("appStatus").style.background="#fdeaea"}
 })();
