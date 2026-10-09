@@ -1,0 +1,723 @@
+{
+  "fileType": "vocabulary-course",
+  "schemaVersion": 7,
+  "course": {
+    "id": "franzoesisch-6",
+    "label": "Französisch 6",
+    "learningLocale": "fr-FR",
+    "nativeLocale": "de-DE"
+  },
+  "entries": [
+    {
+      "foreign": "mot synthétique 01",
+      "meanings": [
+        "Testwort 01"
+      ],
+      "unitId": "unite-0",
+      "part": "auftakt",
+      "sectionName": "Âge"
+    },
+    {
+      "foreign": "mot synthétique 02",
+      "meanings": [
+        "Testwort 02"
+      ],
+      "unitId": "unite-0",
+      "part": "auftakt",
+      "sectionName": "Bonjour"
+    },
+    {
+      "foreign": "mot synthétique 03",
+      "meanings": [
+        "Testwort 03"
+      ],
+      "unitId": "unite-0",
+      "part": "auftakt",
+      "sectionName": "Ça va"
+    },
+    {
+      "foreign": "mot synthétique 04",
+      "meanings": [
+        "Testwort 04"
+      ],
+      "unitId": "unite-0",
+      "part": "auftakt",
+      "sectionName": "Âge"
+    },
+    {
+      "foreign": "mot synthétique 05",
+      "meanings": [
+        "Testwort 05"
+      ],
+      "unitId": "unite-0",
+      "part": "auftakt",
+      "sectionName": "Bonjour"
+    },
+    {
+      "foreign": "mot synthétique 06",
+      "meanings": [
+        "Testwort 06"
+      ],
+      "unitId": "unite-0",
+      "part": "auftakt",
+      "sectionName": "Ça va"
+    },
+    {
+      "foreign": "mot synthétique 07",
+      "meanings": [
+        "Testwort 07"
+      ],
+      "unitId": "unite-0",
+      "part": "auftakt",
+      "sectionName": "Âge"
+    },
+    {
+      "foreign": "mot synthétique 08",
+      "meanings": [
+        "Testwort 08"
+      ],
+      "unitId": "unite-0",
+      "part": "auftakt",
+      "sectionName": "Bonjour"
+    },
+    {
+      "foreign": "mot synthétique 09",
+      "meanings": [
+        "Testwort 09"
+      ],
+      "unitId": "unite-0",
+      "part": "auftakt",
+      "sectionName": "Ça va"
+    },
+    {
+      "foreign": "mot synthétique 10",
+      "meanings": [
+        "Testwort 10"
+      ],
+      "unitId": "unite-0",
+      "part": "auftakt",
+      "sectionName": "Âge"
+    },
+    {
+      "foreign": "mot synthétique 11",
+      "meanings": [
+        "Testwort 11"
+      ],
+      "unitId": "unite-0",
+      "part": "auftakt",
+      "sectionName": "Bonjour"
+    },
+    {
+      "foreign": "mot synthétique 12",
+      "meanings": [
+        "Testwort 12"
+      ],
+      "unitId": "unite-0",
+      "part": "auftakt",
+      "sectionName": "Ça va"
+    },
+    {
+      "foreign": "mot synthétique 13",
+      "meanings": [
+        "Testwort 13"
+      ],
+      "unitId": "unite-0",
+      "part": "auftakt",
+      "sectionName": "Âge"
+    },
+    {
+      "foreign": "mot synthétique 14",
+      "meanings": [
+        "Testwort 14"
+      ],
+      "unitId": "unite-0",
+      "part": "auftakt",
+      "sectionName": "Bonjour"
+    },
+    {
+      "foreign": "mot synthétique 15",
+      "meanings": [
+        "Testwort 15"
+      ],
+      "unitId": "unite-0",
+      "part": "auftakt",
+      "sectionName": "Ça va"
+    },
+    {
+      "foreign": "mot synthétique 16",
+      "meanings": [
+        "Testwort 16"
+      ],
+      "unitId": "unite-0",
+      "part": "auftakt",
+      "sectionName": "Âge"
+    },
+    {
+      "foreign": "mot synthétique 17",
+      "meanings": [
+        "Testwort 17"
+      ],
+      "unitId": "unite-0",
+      "part": "auftakt",
+      "sectionName": "Bonjour"
+    },
+    {
+      "foreign": "mot synthétique 18",
+      "meanings": [
+        "Testwort 18"
+      ],
+      "unitId": "unite-0",
+      "part": "auftakt",
+      "sectionName": "Ça va"
+    },
+    {
+      "foreign": "mot synthétique 19",
+      "meanings": [
+        "Testwort 19"
+      ],
+      "unitId": "unite-0",
+      "part": "auftakt",
+      "sectionName": "Âge"
+    },
+    {
+      "foreign": "mot synthétique 20",
+      "meanings": [
+        "Testwort 20"
+      ],
+      "unitId": "unite-0",
+      "part": "auftakt",
+      "sectionName": "Bonjour"
+    },
+    {
+      "foreign": "mot synthétique 21",
+      "meanings": [
+        "Testwort 21"
+      ],
+      "unitId": "unite-0",
+      "part": "auftakt",
+      "sectionName": "Ça va"
+    },
+    {
+      "foreign": "mot synthétique 22",
+      "meanings": [
+        "Testwort 22"
+      ],
+      "unitId": "unite-0",
+      "part": "auftakt",
+      "sectionName": "Âge"
+    },
+    {
+      "foreign": "mot synthétique 23",
+      "meanings": [
+        "Testwort 23"
+      ],
+      "unitId": "unite-0",
+      "part": "auftakt",
+      "sectionName": "Bonjour"
+    },
+    {
+      "foreign": "mot synthétique 24",
+      "meanings": [
+        "Testwort 24"
+      ],
+      "unitId": "unite-0",
+      "part": "auftakt",
+      "sectionName": "Ça va"
+    },
+    {
+      "foreign": "mot synthétique 25",
+      "meanings": [
+        "Testwort 25"
+      ],
+      "unitId": "unite-0",
+      "part": "auftakt",
+      "sectionName": "Âge"
+    },
+    {
+      "foreign": "mot synthétique 26",
+      "meanings": [
+        "Testwort 26"
+      ],
+      "unitId": "unite-0",
+      "part": "auftakt",
+      "sectionName": "Bonjour"
+    },
+    {
+      "foreign": "mot synthétique 27",
+      "meanings": [
+        "Testwort 27"
+      ],
+      "unitId": "unite-0",
+      "part": "auftakt",
+      "sectionName": "Ça va"
+    },
+    {
+      "foreign": "mot synthétique 28",
+      "meanings": [
+        "Testwort 28"
+      ],
+      "unitId": "unite-0",
+      "part": "auftakt",
+      "sectionName": "Âge"
+    },
+    {
+      "foreign": "mot synthétique 29",
+      "meanings": [
+        "Testwort 29"
+      ],
+      "unitId": "unite-0",
+      "part": "auftakt",
+      "sectionName": "Bonjour"
+    },
+    {
+      "foreign": "mot synthétique 30",
+      "meanings": [
+        "Testwort 30"
+      ],
+      "unitId": "unite-0",
+      "part": "auftakt",
+      "sectionName": "Ça va"
+    },
+    {
+      "foreign": "mot synthétique 31",
+      "meanings": [
+        "Testwort 31"
+      ],
+      "unitId": "unite-0",
+      "part": "auftakt",
+      "sectionName": "Âge"
+    },
+    {
+      "foreign": "mot synthétique 32",
+      "meanings": [
+        "Testwort 32"
+      ],
+      "unitId": "unite-0",
+      "part": "auftakt",
+      "sectionName": "Bonjour"
+    },
+    {
+      "foreign": "mot synthétique 33",
+      "meanings": [
+        "Testwort 33"
+      ],
+      "unitId": "unite-0",
+      "part": "auftakt",
+      "sectionName": "Ça va"
+    },
+    {
+      "foreign": "mot synthétique 34",
+      "meanings": [
+        "Testwort 34"
+      ],
+      "unitId": "unite-0",
+      "part": "auftakt",
+      "sectionName": "Âge"
+    },
+    {
+      "foreign": "mot synthétique 35",
+      "meanings": [
+        "Testwort 35"
+      ],
+      "unitId": "unite-0",
+      "part": "auftakt",
+      "sectionName": "Bonjour"
+    },
+    {
+      "foreign": "mot synthétique 36",
+      "meanings": [
+        "Testwort 36"
+      ],
+      "unitId": "unite-0",
+      "part": "auftakt",
+      "sectionName": "Ça va"
+    },
+    {
+      "foreign": "mot synthétique 37",
+      "meanings": [
+        "Testwort 37"
+      ],
+      "unitId": "unite-0",
+      "part": "auftakt",
+      "sectionName": "Âge"
+    },
+    {
+      "foreign": "mot synthétique 38",
+      "meanings": [
+        "Testwort 38"
+      ],
+      "unitId": "unite-0",
+      "part": "auftakt",
+      "sectionName": "Bonjour"
+    },
+    {
+      "foreign": "mot synthétique 39",
+      "meanings": [
+        "Testwort 39"
+      ],
+      "unitId": "unite-0",
+      "part": "auftakt",
+      "sectionName": "Ça va"
+    },
+    {
+      "foreign": "mot synthétique 40",
+      "meanings": [
+        "Testwort 40"
+      ],
+      "unitId": "unite-0",
+      "part": "auftakt",
+      "sectionName": "Âge"
+    },
+    {
+      "foreign": "mot synthétique 41",
+      "meanings": [
+        "Testwort 41"
+      ],
+      "unitId": "unite-0",
+      "part": "auftakt",
+      "sectionName": "Bonjour"
+    },
+    {
+      "foreign": "mot synthétique 42",
+      "meanings": [
+        "Testwort 42"
+      ],
+      "unitId": "unite-0",
+      "part": "auftakt",
+      "sectionName": "Ça va"
+    },
+    {
+      "foreign": "mot synthétique 43",
+      "meanings": [
+        "Testwort 43"
+      ],
+      "unitId": "unite-0",
+      "part": "auftakt",
+      "sectionName": "Âge"
+    },
+    {
+      "foreign": "mot synthétique 44",
+      "meanings": [
+        "Testwort 44"
+      ],
+      "unitId": "unite-0",
+      "part": "auftakt",
+      "sectionName": "Bonjour"
+    },
+    {
+      "foreign": "mot synthétique 45",
+      "meanings": [
+        "Testwort 45"
+      ],
+      "unitId": "unite-0",
+      "part": "auftakt",
+      "sectionName": "Ça va"
+    },
+    {
+      "foreign": "mot synthétique 46",
+      "meanings": [
+        "Testwort 46"
+      ],
+      "unitId": "unite-0",
+      "part": "auftakt",
+      "sectionName": "Âge"
+    },
+    {
+      "foreign": "mot synthétique 47",
+      "meanings": [
+        "Testwort 47"
+      ],
+      "unitId": "unite-0",
+      "part": "auftakt",
+      "sectionName": "Bonjour"
+    },
+    {
+      "foreign": "mot synthétique 48",
+      "meanings": [
+        "Testwort 48"
+      ],
+      "unitId": "unite-0",
+      "part": "auftakt",
+      "sectionName": "Ça va"
+    },
+    {
+      "foreign": "mot synthétique 49",
+      "meanings": [
+        "Testwort 49"
+      ],
+      "unitId": "unite-0",
+      "part": "auftakt",
+      "sectionName": "Âge"
+    },
+    {
+      "foreign": "mot synthétique 50",
+      "meanings": [
+        "Testwort 50"
+      ],
+      "unitId": "unite-0",
+      "part": "auftakt",
+      "sectionName": "Bonjour"
+    },
+    {
+      "foreign": "mot synthétique 51",
+      "meanings": [
+        "Testwort 51"
+      ],
+      "unitId": "unite-0",
+      "part": "auftakt",
+      "sectionName": "Ça va"
+    },
+    {
+      "foreign": "mot synthétique 52",
+      "meanings": [
+        "Testwort 52"
+      ],
+      "unitId": "unite-0",
+      "part": "auftakt",
+      "sectionName": "Âge"
+    },
+    {
+      "foreign": "mot synthétique 53",
+      "meanings": [
+        "Testwort 53"
+      ],
+      "unitId": "unite-0",
+      "part": "auftakt",
+      "sectionName": "Bonjour"
+    },
+    {
+      "foreign": "mot synthétique 54",
+      "meanings": [
+        "Testwort 54"
+      ],
+      "unitId": "unite-0",
+      "part": "auftakt",
+      "sectionName": "Ça va"
+    },
+    {
+      "foreign": "mot synthétique 55",
+      "meanings": [
+        "Testwort 55"
+      ],
+      "unitId": "unite-0",
+      "part": "auftakt",
+      "sectionName": "Âge"
+    },
+    {
+      "foreign": "mot synthétique 56",
+      "meanings": [
+        "Testwort 56"
+      ],
+      "unitId": "unite-0",
+      "part": "auftakt",
+      "sectionName": "Bonjour"
+    },
+    {
+      "foreign": "mot synthétique 57",
+      "meanings": [
+        "Testwort 57"
+      ],
+      "unitId": "unite-0",
+      "part": "auftakt",
+      "sectionName": "Ça va"
+    },
+    {
+      "foreign": "mot synthétique 58",
+      "meanings": [
+        "Testwort 58"
+      ],
+      "unitId": "unite-0",
+      "part": "auftakt",
+      "sectionName": "Âge"
+    },
+    {
+      "foreign": "mot synthétique 59",
+      "meanings": [
+        "Testwort 59"
+      ],
+      "unitId": "unite-0",
+      "part": "auftakt",
+      "sectionName": "Bonjour"
+    },
+    {
+      "foreign": "mot synthétique 60",
+      "meanings": [
+        "Testwort 60"
+      ],
+      "unitId": "unite-0",
+      "part": "auftakt",
+      "sectionName": "Ça va"
+    },
+    {
+      "foreign": "mot synthétique 61",
+      "meanings": [
+        "Testwort 61"
+      ],
+      "unitId": "unite-0",
+      "part": "auftakt",
+      "sectionName": "Âge"
+    },
+    {
+      "foreign": "mot synthétique 62",
+      "meanings": [
+        "Testwort 62"
+      ],
+      "unitId": "unite-0",
+      "part": "auftakt",
+      "sectionName": "Bonjour"
+    },
+    {
+      "foreign": "mot synthétique 63",
+      "meanings": [
+        "Testwort 63"
+      ],
+      "unitId": "unite-0",
+      "part": "auftakt",
+      "sectionName": "Ça va"
+    },
+    {
+      "foreign": "mot synthétique 64",
+      "meanings": [
+        "Testwort 64"
+      ],
+      "unitId": "unite-0",
+      "part": "auftakt",
+      "sectionName": "Âge"
+    },
+    {
+      "foreign": "mot synthétique 65",
+      "meanings": [
+        "Testwort 65"
+      ],
+      "unitId": "unite-0",
+      "part": "auftakt",
+      "sectionName": "Bonjour"
+    },
+    {
+      "foreign": "mot synthétique 66",
+      "meanings": [
+        "Testwort 66"
+      ],
+      "unitId": "unite-0",
+      "part": "auftakt",
+      "sectionName": "Ça va"
+    },
+    {
+      "foreign": "mot synthétique 67",
+      "meanings": [
+        "Testwort 67"
+      ],
+      "unitId": "unite-0",
+      "part": "auftakt",
+      "sectionName": "Âge"
+    },
+    {
+      "foreign": "mot synthétique 68",
+      "meanings": [
+        "Testwort 68"
+      ],
+      "unitId": "unite-0",
+      "part": "auftakt",
+      "sectionName": "Bonjour"
+    },
+    {
+      "foreign": "mot synthétique 69",
+      "meanings": [
+        "Testwort 69"
+      ],
+      "unitId": "unite-0",
+      "part": "auftakt",
+      "sectionName": "Ça va"
+    },
+    {
+      "foreign": "mot synthétique 70",
+      "meanings": [
+        "Testwort 70"
+      ],
+      "unitId": "unite-0",
+      "part": "auftakt",
+      "sectionName": "Âge"
+    },
+    {
+      "foreign": "mot synthétique 71",
+      "meanings": [
+        "Testwort 71"
+      ],
+      "unitId": "unite-0",
+      "part": "auftakt",
+      "sectionName": "Bonjour"
+    },
+    {
+      "foreign": "mot synthétique 72",
+      "meanings": [
+        "Testwort 72"
+      ],
+      "unitId": "unite-0",
+      "part": "auftakt",
+      "sectionName": "Ça va"
+    },
+    {
+      "foreign": "mot synthétique 73",
+      "meanings": [
+        "Testwort 73"
+      ],
+      "unitId": "unite-0",
+      "part": "auftakt",
+      "sectionName": "Âge"
+    },
+    {
+      "foreign": "mot synthétique 74",
+      "meanings": [
+        "Testwort 74"
+      ],
+      "unitId": "unite-0",
+      "part": "auftakt",
+      "sectionName": "Bonjour"
+    },
+    {
+      "foreign": "mot synthétique 75",
+      "meanings": [
+        "Testwort 75"
+      ],
+      "unitId": "unite-0",
+      "part": "auftakt",
+      "sectionName": "Ça va"
+    },
+    {
+      "foreign": "mot synthétique 76",
+      "meanings": [
+        "Testwort 76"
+      ],
+      "unitId": "unite-0",
+      "part": "auftakt",
+      "sectionName": "Âge"
+    },
+    {
+      "foreign": "mot synthétique 77",
+      "meanings": [
+        "Testwort 77"
+      ],
+      "unitId": "unite-0",
+      "part": "auftakt",
+      "sectionName": "Bonjour"
+    },
+    {
+      "foreign": "mot synthétique 78",
+      "meanings": [
+        "Testwort 78"
+      ],
+      "unitId": "unite-0",
+      "part": "auftakt",
+      "sectionName": "Ça va"
+    },
+    {
+      "foreign": "mot synthétique 79",
+      "meanings": [
+        "Testwort 79"
+      ],
+      "unitId": "unite-0",
+      "part": "auftakt",
+      "sectionName": "Âge"
+    }
+  ]
+}

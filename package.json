@@ -1,0 +1,15 @@
+{
+  "name": "vokabeltrainer",
+  "version": "4.5.0",
+  "private": true,
+  "description": "Browserbasierter Vokabeltrainer – Entwicklungs- und Regressionstests",
+  "scripts": {
+    "check": "node --check app.js && node --check sw.js",
+    "test": "playwright test",
+    "test:chromium": "playwright test --project=chromium --project=chromium-ipad-portrait --project=chromium-ipad-landscape",
+    "test:webkit": "playwright test --project=webkit --project=webkit-ipad-portrait --project=webkit-ipad-landscape",
+    "test:install-browsers": "PLAYWRIGHT_BROWSERS_PATH=.cache/ms-playwright playwright install chromium webkit",
+    "test:report": "playwright show-report"
+  },
+  "devDependencies": { "@playwright/test": "1.58.2" }
+}

@@ -214,10 +214,6 @@ function unitLabel(x){
 function partLabel(x){
  return({"alle":"Alle Teilbereiche","auftakt":"Auftakt","vocabulaire-thematique":"Vocabulaire thématique","volet-1":"Volet 1","volet-2":"Volet 2","sonstiges":"Sonstiges"})[x]||x
 }
-function courseName(id){
- var c=courses.find(function(x){return x.id===id});
- return c?(c.label||c.name||c.id):(id||"Noch kein Kurs")
-}
 
 function fillSelect(sel,items,allLabel){
  if(!sel)return;
@@ -674,7 +670,8 @@ function populateCourseSelector(){
  if(old&&used.indexOf(old)>=0)sel.value=old;else{setActiveCourse(used[0]);sel.value=used[0]}
 }
 function updateCourseLabels(){
- var name=courseName(activeCourseId());$("activeCourseBadge").textContent=name;$("homeCourseLabel").textContent=name
+ var name=courseName(activeCourseId());$("activeCourseBadge").textContent=name;$("homeCourseLabel").textContent=name;
+ $("exportCourse").textContent=activeCourseId()?name+" als Vokabeldatei exportieren":"Aktiven Kurs als Vokabeldatei exportieren"
 }
 async function renderHome(){
  populateCourseSelector();updateCourseLabels();
@@ -825,6 +822,7 @@ async function computeExamStats(pool,date){
  return{days:days,newCount:newCount,weak:weak,due:due,focus:focus,dailyTarget:dailyTarget}
 }
 async function saveExam(){
+ if(!activeCourseId())return alert("Bitte zuerst einen Kurs importieren oder auswählen.");
  var date=$("examDate").value,scopes=selectedExamScopes();
  if(!date)return alert("Bitte Datum wählen.");
  if(!scopes.length)return alert("Bitte mindestens einen Stoffbereich markieren.");
@@ -832,19 +830,24 @@ async function saveExam(){
  await renderExamSummary()
 }
 async function deleteExam(){
- await reqP(os(S_EXAMS,"readwrite").delete(activeCourseId()));$("examDate").value="";populateExamScopes([]);$("examSummary").innerHTML="Für "+courseName(activeCourseId())+" ist noch keine Klassenarbeit gespeichert."
+ if(!activeCourseId()){await renderExamSummary();return}
+ await reqP(os(S_EXAMS,"readwrite").delete(activeCourseId()));await renderExamSummary()
 }
 async function renderExamSummary(){
- var e=await reqP(os(S_EXAMS).get(activeCourseId())),box=$("examSummary");
- if(!e){populateExamScopes([]);box.innerHTML="Für "+courseName(activeCourseId())+" ist noch keine Klassenarbeit gespeichert.";return}
+ var cid=activeCourseId(),e=cid?await reqP(os(S_EXAMS).get(cid)):null,box=$("examSummary");
+ if(!e){$("examDate").value="";populateExamScopes([]);box.textContent=cid?"Für "+courseName(cid)+" ist noch keine Klassenarbeit gespeichert.":"Bitte zuerst einen Kurs importieren oder auswählen.";return}
  $("examDate").value=e.date;var scopes=oldExamScopes(e);populateExamScopes(scopes);
  var pool=poolForScopes(scopes),st=await computeExamStats(pool,e.date);
- box.innerHTML="<strong>"+courseName(activeCourseId())+" · "+scopes.length+" Stoffbereich"+(scopes.length===1?"":"e")+"</strong><br>"+
-  "Klassenarbeit: "+escapeHtml(e.date)+" · noch "+st.days+" Tage<br>"+pool.length+" verschiedene Vokabeln im Stoff · "+
-  st.newCount+" noch nie geübt · "+st.weak+" schwach · "+st.due+" fällig.<br>"+
-  "<strong>Richtwert heute: "+st.dailyTarget+" verschiedene Vokabeln</strong>, damit der gesamte Stoff bis zur Arbeit mindestens einmal durchläuft."
+ var title=document.createElement("strong"),target=document.createElement("strong");
+ title.textContent=courseName(cid)+" · "+scopes.length+" Stoffbereich"+(scopes.length===1?"":"e");
+ target.textContent="Richtwert heute: "+st.dailyTarget+" verschiedene Vokabeln";
+ box.replaceChildren(title,document.createElement("br"),
+  document.createTextNode("Klassenarbeit: "+e.date+" · noch "+st.days+" Tage"),document.createElement("br"),
+  document.createTextNode(pool.length+" verschiedene Vokabeln im Stoff · "+st.newCount+" noch nie geübt · "+st.weak+" schwach · "+st.due+" fällig."),document.createElement("br"),
+  target,document.createTextNode(", damit der gesamte Stoff bis zur Arbeit mindestens einmal durchläuft."))
 }
 async function startExamLearning(){
+ if(!activeCourseId())return alert("Bitte zuerst einen Kurs importieren oder auswählen.");
  var e=await reqP(os(S_EXAMS).get(activeCourseId()));if(!e)return alert("Bitte zuerst eine Klassenarbeit speichern.");
  var pool=poolForScopes(oldExamScopes(e)),st=await computeExamStats(pool,e.date);if(!pool.length)return alert("Im gespeicherten Stoff wurden keine Vokabeln gefunden.");
  pool=await priorityPool(pool);pool=pool.slice(0,Math.min(pool.length,Math.max(1,st.dailyTarget)));
@@ -938,7 +941,10 @@ async function importVocabularyFile(file){
   data.units.forEach(function(u){if(u&&u.id)unitNames.set(String(u.id),u.name||u.label||String(u.id))})
  }
 
- var existing=new Map(vocab.map(function(v){return[v.id,v]}));
+ var existing=new Map(vocab.map(function(v){return[v.id,v]})),identities=new Map();
+ vocab.filter(function(v){return v.courseId===importedCourse}).forEach(function(v){
+  identities.set(v.importIdentity||importIdentity(v,canonicalLocation(v),v.meanings),v)
+ });
  var added=0,updated=0,skipped=0,invalid=0,generatedIds=0;
 
  function canonicalLocation(e){
@@ -958,13 +964,12 @@ async function importVocabularyFile(file){
   return{unitId:unit,part:part||"sonstiges",sectionName:section}
  }
 
- function makeId(e,loc,index){
-  var raw=(importedCourse+"-"+loc.unitId+"-"+loc.part+"-"+(e.foreign||"vokabel"))
-   .toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"")
-   .replace(/[’'`´]/g,"-").replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"").slice(0,100);
-  if(!raw)raw=importedCourse+"-vokabel-"+index;
-  var id=raw,n=2;while(existing.has(id)){id=raw+"-"+n;n++}
-  return id
+ function importIdentity(e,loc,meanings){
+  // Ungekürztes Tupel statt kollisionsanfälligem Slug; die ursprüngliche
+  // Identität bleibt bei manueller Bearbeitung am Datensatz erhalten.
+  function canonical(s){return norm(s).normalize("NFC")}
+  return JSON.stringify([importedCourse,loc.unitId,loc.part,canonical(e.foreign),
+   Array.from(new Set(meanings.map(canonical))).sort()])
  }
 
  for(var i=0;i<entries.length;i++){
@@ -978,30 +983,35 @@ async function importVocabularyFile(file){
   var loc=canonicalLocation(e);
   if(!/^unite-\d+$/.test(loc.unitId)&&!/^module-[a-z]$/.test(loc.unitId)){invalid++;continue}
 
-  var id=e.id?String(e.id):makeId(e,loc,i+1);
+  var identity=e.id?JSON.stringify([importedCourse,"source",String(e.id)]):importIdentity(e,loc,meanings);
+  var match=identities.get(identity);
+  var sourceId=e.id?String(e.id):null;
+  if(!match&&sourceId&&existing.has(sourceId)&&existing.get(sourceId).courseId===importedCourse)match=existing.get(sourceId);
+  var id=match?match.id:(sourceId&&!existing.has(sourceId)?sourceId:"import:"+identity);
+  // Auch fremde explizite IDs dürfen niemals einen anderen Kurs überschreiben.
+  if(!match&&existing.has(id)){var base=id,n=2;while(existing.has(id))id=base+":"+n++}
   if(!e.id)generatedIds++;
 
   if(existing.has(id)){
    var oldv=existing.get(id),dirty=false;
 
-   // Alte falsch zugeordnete Französisch-6-Einträge mit derselben ID reparieren,
-   // Lernstand bleibt erhalten, weil die ID nicht verändert wird.
-   if(importedCourse==="franzoesisch-6" && oldv.courseId!==importedCourse &&
-      (String(id).startsWith("fr6-") || (Number(e.page)>=176&&Number(e.page)<=178))){
-    oldv.courseId=importedCourse;dirty=true
+   if(!oldv.importIdentity){oldv.importIdentity=identity;dirty=true}
+   if(!oldv.userEdited){
+    if(oldv.unitId!==loc.unitId){oldv.unitId=loc.unitId;dirty=true}
+    if(oldv.part!==loc.part){oldv.part=loc.part;dirty=true}
+    if(!oldv.sectionName&&loc.sectionName){oldv.sectionName=loc.sectionName;dirty=true}
    }
-   if(oldv.unitId!==loc.unitId){oldv.unitId=loc.unitId;dirty=true}
-   if(oldv.part!==loc.part){oldv.part=loc.part;dirty=true}
-   if(!oldv.sectionName&&loc.sectionName){oldv.sectionName=loc.sectionName;dirty=true}
 
    if(dirty){
     await reqP(os(S_VOCAB,"readwrite").put(oldv));existing.set(id,oldv);updated++
    }else skipped++;
+   identities.set(identity,oldv);
    continue
   }
 
   var v=Object.assign({},e,{
    id:id,
+   importIdentity:identity,
    courseId:importedCourse,
    unitId:loc.unitId,
    part:loc.part,
@@ -1012,7 +1022,7 @@ async function importVocabularyFile(file){
   });
   delete v.unitName;
   await reqP(os(S_VOCAB,"readwrite").put(v));
-  existing.set(id,v);added++
+  existing.set(id,v);identities.set(identity,v);added++
  }
 
  // Kursmetadaten erst nach erfolgreichem Einlesen schreiben.
@@ -1040,21 +1050,73 @@ async function importVocabularyFile(file){
   skipped+" bereits vorhanden · "+invalid+" ungültig → "+courseLabel+
   (generatedIds?" · "+generatedIds+" IDs automatisch erzeugt":"")+".";
 }
-async function restoreBackupFile(file){
- var data=await parseJsonFile(file);
- if(!isFullBackup(data))throw new Error("Diese Datei ist kein vollständiges Backup. Vokabeldateien bitte oben additiv einlesen.");
- if(!confirm("Backup wirklich wiederherstellen? Der aktuelle lokale Datenbestand wird vollständig ersetzt."))return;
- var stores=[S_VOCAB,S_PROGRESS,S_COURSES,S_EXAMS];
- for(var i=0;i<stores.length;i++)await reqP(os(stores[i],"readwrite").clear());
- async function putAll(store,arr){
-  arr=Array.isArray(arr)?arr:[];
-  if(!arr.length)return;
-  var tx=db.transaction(store,"readwrite"),s=tx.objectStore(store);arr.forEach(function(x){if(x&&x.id)s.put(x)});
-  await new Promise(function(res,rej){tx.oncomplete=res;tx.onerror=function(){rej(tx.error)}})
+function validateBackup(data){
+ function fail(){throw new Error("Das Backup ist unvollständig oder enthält ungültige Daten. Es wurde nichts verändert.")}
+ function object(x){return x!==null&&typeof x==="object"&&!Array.isArray(x)}
+ function text(x){return typeof x==="string"&&x.trim().length>0}
+ function records(key){
+  if(!Array.isArray(data[key]))fail();
+  var ids=new Set();
+  data[key].forEach(function(x){if(!object(x)||!text(x.id)||ids.has(x.id))fail();ids.add(x.id)});
+  return ids
  }
- await putAll(S_VOCAB,data.entries);await putAll(S_PROGRESS,data.progress);await putAll(S_COURSES,data.courses);await putAll(S_EXAMS,data.exams);
- if(data.settings){try{localStorage.setItem(SETTINGS_KEY,JSON.stringify(data.settings))}catch(e){}}
- await reload();applySettings(data.settings||loadSavedSettings());populateCourseSelector();populateAllSelectors();await renderOverview();await renderExamSummary();
+ if(!object(data)||!isFullBackup(data))fail();
+ if(data.schemaVersion!=null&&(!Number.isInteger(data.schemaVersion)||data.schemaVersion<1||data.schemaVersion>6))fail();
+ var courseIds=records("courses"),vocabIds=records("entries");records("progress");records("exams");
+ data.courses.forEach(function(c){
+  ["name","label","learningLocale","nativeLocale"].forEach(function(k){if(c[k]!=null&&!text(c[k]))fail()})
+ });
+ data.entries.forEach(function(v){
+  if(!courseIds.has(v.courseId)||!text(v.foreign)||!text(v.unitId)||!Array.isArray(v.meanings)||!v.meanings.length||!v.meanings.every(text))fail();
+  ["part","sectionName","unitName","importIdentity"].forEach(function(k){if(v[k]!=null&&!text(v[k]))fail()});
+  if(v.userEdited!=null&&typeof v.userEdited!=="boolean")fail()
+ });
+ data.progress.forEach(function(p){
+  if(!vocabIds.has(p.id))fail();
+  Object.keys(pDefault(p.id)).forEach(function(k){
+   if(k==="id"||p[k]==null)return;
+   if(["lastPracticedAt","dueDEFR","dueFRDE"].indexOf(k)>=0){if(typeof p[k]!=="string"||!Number.isFinite(Date.parse(p[k])))fail()}
+   else if(!Number.isInteger(p[k])||p[k]<0||((k==="deFr"||k==="frDe")&&p[k]>5))fail()
+  })
+ });
+ data.exams.forEach(function(e){
+  if(!courseIds.has(e.id)||(e.courseId!=null&&e.courseId!==e.id)||typeof e.date!=="string"||!/^\d{4}-\d{2}-\d{2}$/.test(e.date)||!Number.isFinite(Date.parse(e.date)))fail();
+  if(e.scopes!=null){if(!Array.isArray(e.scopes)||!e.scopes.length||!e.scopes.every(function(s){return typeof s==="string"&&/^[^|]+\|[^|]+$/.test(s)}))fail()}
+  else if(!text(e.unit)||(e.part!=null&&!text(e.part)))fail()
+ });
+ if(!object(data.settings))fail();
+ var s=data.settings;
+ if(s.activeCourse!=null&&!courseIds.has(s.activeCourse))fail();
+ ["unit","part","order","direction","overviewUnit","overviewPart","overviewSort"].forEach(function(k){if(s[k]!=null&&!text(s[k]))fail()});
+ ["autoNext","autoDetectCorrect"].forEach(function(k){if(s[k]!=null&&typeof s[k]!=="boolean")fail()});
+ if(s.distinctCount!=null&&(!Number.isInteger(s.distinctCount)||s.distinctCount<1))fail();
+ return data
+}
+async function restoreBackupFile(file){
+ var data=validateBackup(await parseJsonFile(file));
+ if(!confirm("Backup wirklich wiederherstellen? Der aktuelle lokale Datenbestand wird vollständig ersetzt."))return;
+ var previousSettings=localStorage.getItem(SETTINGS_KEY),previousCourse=localStorage.getItem(ACTIVE_COURSE_KEY);
+ // Alle Stores gemeinsam ersetzen: Auch ein Fehler nach clear() rollt alles zurück.
+ await new Promise(function(resolve,reject){
+  var tx=db.transaction([S_VOCAB,S_PROGRESS,S_COURSES,S_EXAMS],"readwrite"),failure=null;
+  tx.oncomplete=resolve;
+  tx.onabort=function(){
+   try{
+    if(previousSettings===null)localStorage.removeItem(SETTINGS_KEY);else localStorage.setItem(SETTINGS_KEY,previousSettings);
+    if(previousCourse===null)localStorage.removeItem(ACTIVE_COURSE_KEY);else localStorage.setItem(ACTIVE_COURSE_KEY,previousCourse)
+   }catch(e){failure=failure||e}
+   reject(failure||tx.error||new Error("Backup-Import abgebrochen. Der bisherige Datenbestand bleibt erhalten."))
+  };
+  try{
+   [[S_VOCAB,data.entries],[S_PROGRESS,data.progress],[S_COURSES,data.courses],[S_EXAMS,data.exams]].forEach(function(pair){
+    var store=tx.objectStore(pair[0]);store.clear();pair[1].forEach(function(record){store.put(record)})
+   });
+   localStorage.setItem(SETTINGS_KEY,JSON.stringify(data.settings));
+   if(data.settings.activeCourse)localStorage.setItem(ACTIVE_COURSE_KEY,data.settings.activeCourse);else localStorage.removeItem(ACTIVE_COURSE_KEY)
+  }catch(e){failure=e;tx.abort()}
+ });
+ clearTimeout(autoTimer);clearTimeout(correctDetectTimer);session.active=false;
+ await reload();applySettings(data.settings);populateCourseSelector();await renderOverview();await renderExamSummary();
  $("backupResult").textContent="Backup vollständig wiederhergestellt: "+data.entries.length+" Vokabeln und "+(data.progress||[]).length+" Lernstände.";
  showView("home");await renderHome()
 }
