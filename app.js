@@ -59,10 +59,10 @@ async function prepareData(){
    if(v.part!=="auftakt"){v.part="auftakt";dirty=true}
   }else{
    // Alte zusammengesetzte IDs wie unite-1-volet-1 werden sauber getrennt.
-   var m=uid.match(/^(unite-\d+)-(auftakt|vocabulaire-thematique|volet-1|volet-2)$/);
+   var m=uid.match(/^(unite-\d+)-(auftakt|vocabulaire-thematique|volet-1|volet-2|volet-3)$/);
    if(m){
     v.unitId=m[1];v.part=m[2];dirty=true
-   }else if(/^module-[a-z]$/.test(uid)){
+   }else if(isModule(uid)){
     if(v.part!=="alle"){v.part="alle";dirty=true}
    }
   }
@@ -184,12 +184,13 @@ function germanNear(item,g){
 }
 function escapeHtml(s){return String(s).replace(/[&<>"']/g,function(m){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]})}
 
+function isModule(unit){return /^module-([a-z]|[1-6])$/.test(unit)}
 function unitGroup(value){
  var unitId=typeof value==="object"&&value?value.unitId:value;
  unitId=String(unitId||"");
  var m=unitId.match(/^(unite-\d+)/);
  if(m)return m[1];
- if(/^module-[a-z]$/.test(unitId))return unitId;
+ if(isModule(unitId))return unitId;
  return unitId||"ohne"
 }
 function partGroup(value){
@@ -200,6 +201,7 @@ function partGroup(value){
  if(/vocabulaire-thematique/.test(unitId))return"vocabulaire-thematique";
  if(/volet-1/.test(unitId))return"volet-1";
  if(/volet-2/.test(unitId))return"volet-2";
+ if(/volet-3/.test(unitId))return"volet-3";
  if(/^module-/.test(unitId))return"alle";
  return"sonstiges"
 }
@@ -207,12 +209,12 @@ function unitLabel(x){
  if(x==="alle")return"Alle Vokabeln";
  var um=String(x||"").match(/^unite-(\d+)$/);
  if(um)return"Unité "+um[1];
- var mm=String(x||"").match(/^module-([a-z])$/);
+ var mm=String(x||"").match(/^module-([a-z]|[1-6])$/);
  if(mm)return"Module "+mm[1].toUpperCase();
  return x
 }
 function partLabel(x){
- return({"alle":"Alle Teilbereiche","auftakt":"Auftakt","vocabulaire-thematique":"Vocabulaire thématique","volet-1":"Volet 1","volet-2":"Volet 2","sonstiges":"Sonstiges"})[x]||x
+ return({"alle":"Alle Teilbereiche","auftakt":"Auftakt","vocabulaire-thematique":"Vocabulaire thématique","volet-1":"Volet 1","volet-2":"Volet 2","volet-3":"Volet 3","sonstiges":"Sonstiges"})[x]||x
 }
 
 function fillSelect(sel,items,allLabel){
@@ -228,8 +230,8 @@ function unitsForCourse(courseId){
    var au=String(a).match(/^unite-(\d+)$/),bu=String(b).match(/^unite-(\d+)$/);
    if(au&&bu)return Number(au[1])-Number(bu[1]);
    if(au)return-1;if(bu)return 1;
-   var am=String(a).match(/^module-([a-z])$/),bm=String(b).match(/^module-([a-z])$/);
-   if(am&&bm)return am[1].localeCompare(bm[1]);
+   var am=String(a).match(/^module-([a-z]|[1-6])$/),bm=String(b).match(/^module-([a-z]|[1-6])$/);
+   if(am&&bm)return am[1].localeCompare(bm[1],"de",{numeric:true});
    if(am)return-1;if(bm)return 1;
    return String(a).localeCompare(String(b))
   })
@@ -242,11 +244,11 @@ function populateUnit(sel,courseId,includeAll){
  }
 }
 function partsFor(courseId,unit){
- if(/^module-[a-z]$/.test(unit)||unit==="unite-0")return unit==="unite-0"?["auftakt"]:[];
+ if(isModule(unit)||unit==="unite-0")return unit==="unite-0"?["auftakt"]:[];
  return Array.from(new Set(vocab.filter(function(v){
   return(courseId==="alle"||v.courseId===courseId)&&(unit==="alle"||unitGroup(v)===unit)
  }).map(function(v){return partGroup(v)}))).filter(function(x){return x!=="alle"}).sort(function(a,b){
-  var order={"auftakt":1,"vocabulaire-thematique":2,"volet-1":3,"volet-2":4,"sonstiges":9};
+  var order={"auftakt":1,"vocabulaire-thematique":2,"volet-1":3,"volet-2":4,"volet-3":5,"sonstiges":9};
   return(order[a]||99)-(order[b]||99)||a.localeCompare(b)
  })
 }
@@ -257,7 +259,7 @@ function populatePart(sel,courseId,unit,includeAll){
  if(unit==="unite-0"){
   sel.innerHTML="";var intro=document.createElement("option");intro.value="auftakt";intro.textContent="Auftakt";sel.appendChild(intro);sel.disabled=true;return
  }
- if(/^module-[a-z]$/.test(unit)){
+ if(isModule(unit)){
   sel.innerHTML="";var mod=document.createElement("option");mod.value="alle";mod.textContent="gesamtes Modul";sel.appendChild(mod);sel.disabled=true;return
  }
  var parts=partsFor(courseId,unit);
@@ -743,12 +745,12 @@ async function renderVocab(){
 function unitIdFromSelection(unit,part){return unit}
 function populateEditParts(){
  var unit=$("editUnit").value;populatePart($("editPart"),activeCourseId(),unit,false);
- if(/^module-[a-z]$/.test(unit))$("editPartLabel").hidden=true;
+ if(isModule(unit))$("editPartLabel").hidden=true;
  else{$("editPartLabel").hidden=false;if(!$("editPart").value&&$("editPart").options.length)$("editPart").selectedIndex=0}
  updateEditLocation()
 }
 function updateEditLocation(){
- var unit=$("editUnit").value,part=/^module-[a-z]$/.test(unit)?"gesamtes Modul":partLabel($("editPart").value);
+ var unit=$("editUnit").value,part=isModule(unit)?"gesamtes Modul":partLabel($("editPart").value);
  $("editLocation").textContent="Ablage: "+unitLabel(unit)+" · "+part
 }
 function newVocab(){
@@ -761,7 +763,7 @@ function editVocab(id){
  var v=vocab.find(function(x){return x.id===id});if(!v)return;
  $("editTitle").textContent="Vokabel bearbeiten";$("editId").value=v.id;$("editForeign").value=v.foreign;$("editMeanings").value=v.meanings.join("; ");
  populateUnit($("editUnit"),activeCourseId(),false);var ug=unitGroup(v);$("editUnit").value=ug;populateEditParts();
- if(!/^module-[a-z]$/.test(ug)){var pg=partGroup(v);if([].slice.call($("editPart").options).some(function(o){return o.value===pg}))$("editPart").value=pg}
+ if(!isModule(ug)){var pg=partGroup(v);if([].slice.call($("editPart").options).some(function(o){return o.value===pg}))$("editPart").value=pg}
  updateEditLocation();$("deleteVocab").hidden=false;$("editModal").hidden=false;setTimeout(function(){$("editForeign").focus()},30)
 }
 function closeEditModal(){$("editModal").hidden=true}
@@ -773,7 +775,7 @@ async function saveEdit(){
  v.foreign=foreign;v.meanings=meanings;v.courseId=activeCourseId();
  var selectedUnit=$("editUnit").value;
  v.unitId=selectedUnit;
- v.part=/^module-[a-z]$/.test(selectedUnit)?"alle":(selectedUnit==="unite-0"?"auftakt":$("editPart").value||"sonstiges");
+ v.part=isModule(selectedUnit)?"alle":(selectedUnit==="unite-0"?"auftakt":$("editPart").value||"sonstiges");
  v.userEdited=true;v.userEditedAt=new Date().toISOString();
  await reqP(os(S_VOCAB,"readwrite").put(v));await reload();populateAllSelectors();closeEditModal();await renderVocab()
 }
@@ -788,7 +790,7 @@ async function deleteVocab(){
 function scopeCatalog(){
  var out=[],units=unitsForCourse(activeCourseId());
  units.forEach(function(u){
-  if(/^module-[a-z]$/.test(u))out.push({key:u+"|alle",unit:u,part:"alle",label:unitLabel(u)});
+  if(isModule(u))out.push({key:u+"|alle",unit:u,part:"alle",label:unitLabel(u)});
   else partsFor(activeCourseId(),u).forEach(function(p){out.push({key:u+"|"+p,unit:u,part:p,label:unitLabel(u)+" · "+partLabel(p)})})
  });
  return out
@@ -956,10 +958,10 @@ async function importVocabularyFile(file){
    return{unitId:"unite-0",part:"auftakt",sectionName:section||original}
   }
 
-  var old=original.match(/^(unite-\d+)-(auftakt|vocabulaire-thematique|volet-1|volet-2)$/);
+  var old=original.match(/^(unite-\d+)-(auftakt|vocabulaire-thematique|volet-1|volet-2|volet-3)$/);
   if(old){unit=old[1];part=part||old[2]}
 
-  if(/^module-[a-z]$/.test(unit))part="alle";
+  if(isModule(unit))part="alle";
   if(/^unite-\d+$/.test(unit)&&!part)part="sonstiges";
   return{unitId:unit,part:part||"sonstiges",sectionName:section}
  }
@@ -981,7 +983,7 @@ async function importVocabularyFile(file){
   if(!meanings.length){invalid++;continue}
 
   var loc=canonicalLocation(e);
-  if(!/^unite-\d+$/.test(loc.unitId)&&!/^module-[a-z]$/.test(loc.unitId)){invalid++;continue}
+  if(!/^unite-\d+$/.test(loc.unitId)&&!isModule(loc.unitId)){invalid++;continue}
 
   var identity=e.id?JSON.stringify([importedCourse,"source",String(e.id)]):importIdentity(e,loc,meanings);
   var match=identities.get(identity);
