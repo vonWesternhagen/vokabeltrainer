@@ -1,3 +1,6 @@
+const { createServer } = require('node:http');
+const { readFile } = require('node:fs/promises');
+const path = require('node:path');
 const { test, expect, course, entry, openApp, importCourse, snapshot, startRound, exportBackup, restore } = require('./helpers');
 
 test.beforeEach(async ({ page }) => openApp(page));
@@ -34,22 +37,67 @@ test('Vollständiges leeres Backup ist gültig und startet ohne Fehler', async (
   await page.reload();await expect(page.locator('#appStatus')).toContainText('noch keine Vokabeln importiert');
 });
 
-test('Service Worker und Offline-Neuladen lesen vorhandene IndexedDB-Daten', async ({ page, context }) => {
-  await importCourse(page, course([entry('offline')], 'offline', 'Offlinekurs'));
-  await page.evaluate(() => navigator.serviceWorker.ready);
-  await page.reload();await page.waitForFunction(() => !!navigator.serviceWorker.controller);
-  const before = await snapshot(page);
-  const cachesBefore = await page.evaluate(async () => {
-    const names = await caches.keys();
-    const cache = await caches.open(names.find(n => n.startsWith('vokabeltrainer-')));
-    return { names, paths: (await cache.keys()).map(r => new URL(r.url).pathname + new URL(r.url).search) };
+test('Service Worker und Offline-Neuladen lesen vorhandene IndexedDB-Daten', async ({ page }) => {
+  // Ein eigener Origin erlaubt einen echten Netzausfall, ohne parallele Tests
+  // zu stören. WebKits setOffline(true) kann SW-Navigationen bereits vor dem
+  // Cache-Fallback mit "internal error" abbrechen (auch bei goto statt reload).
+  // Deshalb wird der Server nach dem Cachen vollständig abgeschaltet.
+  const assets = {
+    '/': ['index.html', 'text/html'],
+    '/index.html': ['index.html', 'text/html'],
+    '/app.js': ['app.js', 'application/javascript'],
+    '/styles.css': ['styles.css', 'text/css'],
+    '/sw.js': ['sw.js', 'application/javascript'],
+    '/manifest.webmanifest': ['manifest.webmanifest', 'application/manifest+json'],
+  };
+  const server = createServer(async (request, response) => {
+    const asset = assets[new URL(request.url, 'http://localhost').pathname];
+    if (!asset) { response.writeHead(404); response.end(); return; }
+    try {
+      const body = await readFile(path.join(__dirname, '..', asset[0]));
+      response.writeHead(200, { 'Content-Type': asset[1] });response.end(body);
+    } catch { response.writeHead(500);response.end(); }
   });
-  expect(cachesBefore.names).toContain('vokabeltrainer-v45-stable1');
-  expect(cachesBefore.paths).toEqual(expect.arrayContaining(['/index.html', '/app.js?v=45.1', '/styles.css?v=45.1', '/manifest.webmanifest']));
-  await context.setOffline(true);
-  await page.reload();await expect(page.locator('#appStatus')).toContainText('Offlinekurs · 1 Vokabeln');
-  expect((await snapshot(page)).vocab).toEqual(before.vocab);
-  await startRound(page, { count: 1 });await expect(page.locator('#prompt')).toHaveText('Wort offline');
+  const stopServer = () => new Promise((resolve, reject) => {
+    server.close(error => error ? reject(error) : resolve());
+    server.closeAllConnections();
+  });
+  await new Promise((resolve, reject) => {
+    server.once('error', reject);server.listen(0, '127.0.0.1', resolve);
+  });
+  const origin = `http://127.0.0.1:${server.address().port}`;
+  try {
+    await page.goto(origin);
+    await expect(page.locator('#appStatus')).toContainText('Version 4.5 läuft');
+    await importCourse(page, course([entry('offline')], 'offline', 'Offlinekurs'));
+    await page.evaluate(() => navigator.serviceWorker.ready);
+    await page.waitForFunction(() => navigator.serviceWorker.controller?.state === 'activated');
+    const before = await snapshot(page);
+    const cachesBefore = await page.evaluate(async () => {
+      const names = await caches.keys();
+      const cache = await caches.open(names.find(n => n.startsWith('vokabeltrainer-')));
+      return { names, paths: (await cache.keys()).map(r => new URL(r.url).pathname + new URL(r.url).search) };
+    });
+    expect(cachesBefore.names).toContain('vokabeltrainer-v45-stable1');
+    expect(cachesBefore.paths).toEqual(expect.arrayContaining(['/index.html', '/app.js?v=45.1', '/styles.css?v=45.1', '/manifest.webmanifest']));
+    await page.evaluate(() => { window.beforeOfflineNavigation = true; });
+    await stopServer();
+    // Node-fetch umgeht den Browsercache/SW: der Origin ist wirklich unerreichbar.
+    await expect(fetch(origin)).rejects.toThrow();
+    const offlineURL = `${origin}/index.html?offline-restart=1`;
+    await page.goto(offlineURL, { waitUntil: 'domcontentloaded' });
+    await expect(page).toHaveURL(offlineURL);
+    await expect(page.locator('#appStatus')).toContainText('Offlinekurs · 1 Vokabeln');
+    expect(await page.evaluate(() => window.beforeOfflineNavigation)).toBeUndefined();
+    await page.waitForFunction(() => navigator.serviceWorker.controller?.state === 'activated');
+    expect(await snapshot(page)).toEqual(before);
+    await startRound(page, { count: 1 });await expect(page.locator('#prompt')).toHaveText('Wort offline');
+    await page.fill('#answer', 'mot offline');await page.click('#check');
+    await expect(page.locator('#feedback')).toContainText('✓ Richtig:');
+    expect((await snapshot(page)).progress).toEqual([expect.objectContaining({ id: 'offline', attempts: 1, correct: 1 })]);
+  } finally {
+    if (server.listening) await stopServer();
+  }
 });
 
 test('Cache-Aktivierung entfernt alte eigene Versionen und erhält fremde Caches', async ({ page }) => {
