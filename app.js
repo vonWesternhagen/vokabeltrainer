@@ -210,7 +210,7 @@ function unitLabel(x){
  var um=String(x||"").match(/^unite-(\d+)$/);
  if(um)return"Unité "+um[1];
  var mm=String(x||"").match(/^module-([a-z]|[1-6])$/);
- if(mm)return"Module "+mm[1].toUpperCase();
+ if(mm)return(/^[1-6]$/.test(mm[1])?"Modul ":"Module ")+mm[1].toUpperCase();
  return x
 }
 function partLabel(x){

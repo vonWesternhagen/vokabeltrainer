@@ -46,7 +46,7 @@ test('Module 1–6 werden angenommen, numerisch sortiert und ohne Teilbereiche a
   const data = await snapshot(page);
   expect(data.vocab).toHaveLength(8);
   expect(data.vocab.filter(v => v.unitId.startsWith('module-')).every(v => v.part === 'alle')).toBe(true);
-  const labels = ['Alle Vokabeln', 'Unité 0', 'Unité 1', ...numericModules.map(n => `Module ${n}`)];
+  const labels = ['Alle Vokabeln', 'Unité 0', 'Unité 1', ...numericModules.map(n => `Modul ${n}`)];
   for (const [tab, unit, part] of [['#tabLearn', '#unitSelect', '#partSelect'], ['#tabOverview', '#overviewUnit', '#overviewPart']]) {
     await page.click(tab);await expect(page.locator(`${unit} option`)).toHaveText(labels);
     for (const n of numericModules) {
@@ -64,13 +64,13 @@ test('Module 1–6 werden angenommen, numerisch sortiert und ohne Teilbereiche a
     await page.selectOption(unit, 'alle');await expect(page.locator(part)).toBeDisabled();
   }
   await page.click('#tabPlan');
-  await expect(page.locator('#examScopeList .scope-option')).toHaveText(['Unité 0 · Auftakt', 'Unité 1 · Volet 1', ...numericModules.map(n => `Module ${n}`)]);
+  await expect(page.locator('#examScopeList .scope-option')).toHaveText(['Unité 0 · Auftakt', 'Unité 1 · Volet 1', ...numericModules.map(n => `Modul ${n}`)]);
 });
 
 test('Alphabetische Module bleiben neben numerischen Modulen kompatibel und lernbar', async ({ page }) => {
   await importCourse(page, fr6(['z', 'b', '6', 'a', '1'].map(id => entry(`m${id}`, { unitId: `module-${id}`, part: 'alle' }))));
   await page.reload();await page.click('#tabLearn');
-  await expect(page.locator('#unitSelect option')).toHaveText(['Alle Vokabeln', 'Module 1', 'Module 6', 'Module A', 'Module B', 'Module Z']);
+  await expect(page.locator('#unitSelect option')).toHaveText(['Alle Vokabeln', 'Modul 1', 'Modul 6', 'Module A', 'Module B', 'Module Z']);
   for (const id of ['a', 'b', 'z']) {
     await page.selectOption('#unitSelect', `module-${id}`);
     await expect(page.locator('#partSelect')).toBeDisabled();
@@ -82,7 +82,7 @@ test('Alphabetische Module bleiben neben numerischen Modulen kompatibel und lern
   await expect(page.locator('#trainerScope')).toContainText('Module Z');
 });
 
-for (const moduleId of ['module-1', 'module-6', 'module-a']) {
+for (const [moduleId, moduleLabel] of [['module-1', 'Modul 1'], ['module-6', 'Modul 6'], ['module-a', 'Module A']]) {
   test(`Editor kann zwischen Volet 3 und ${moduleId} wechseln und die Zuordnung speichern`, async ({ page }) => {
     await importCourse(page, fr6([
       entry('edit', { part: 'volet-3' }),
@@ -104,7 +104,7 @@ for (const moduleId of ['module-1', 'module-6', 'module-a']) {
     await page.click('#tabLearn');await page.selectOption('#unitSelect', moduleId);
     await startRound(page, { count: 10 });
     await expect(page.locator('#bigProgress')).toHaveText('0 / 2');
-    await expect(page.locator('#trainerScope')).toContainText(`Module ${moduleId.slice(7).toUpperCase()}`);
+    await expect(page.locator('#trainerScope')).toContainText(moduleLabel);
   });
 }
 
@@ -122,5 +122,5 @@ test('Vorhandene gespeicherte Volet-3- und Modulzuordnungen werden beim Start no
   expect(data.vocab.find(v => v.id === 'legacy')).toMatchObject({ unitId: 'unite-1', part: 'volet-3' });
   for (const id of ['numeric', 'alpha']) expect(data.vocab.find(v => v.id === id).part).toBe('alle');
   await page.click('#tabPlan');
-  await expect(page.locator('#examScopeList .scope-option')).toHaveText(['Unité 1 · Volet 3', 'Module 3', 'Module B']);
+  await expect(page.locator('#examScopeList .scope-option')).toHaveText(['Unité 1 · Volet 3', 'Modul 3', 'Module B']);
 });
