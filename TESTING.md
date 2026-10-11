@@ -99,3 +99,28 @@ sichtbaren Bereich, Wechsel zwischen Hoch-/Querformat mit geöffneter Tastatur,
 Safari und installierte Home-Screen-App, JSON-Import/Export über die Dateien-App
 bzw. NAS sowie Offline-Start nach vollständigem Schließen der App.
 Viewport-Emulation und Playwright-WebKit ersetzen keinen Test auf iPadOS Safari.
+
+## Interaktion und Navigation
+
+`interaction-navigation.spec.js` prüft alle Tabs und Startkacheln, 50 feste
+Navigationszyklen, 20 aufeinanderfolgende Lernrunden und 20 Kurswechsel.
+Weitere Fälle decken schnelle Mehrfacheingaben, leere/geübte Kurse, Editormodals,
+Fehlerrückmeldungen und verspätete Datenbankantworten ab. Die Hilfsfunktionen in
+`interaction-helpers.js` verzögern einzelne echte IndexedDB-Read-Rückmeldungen,
+um konkurrierende UI-Aktionen reproduzierbar zu prüfen; die Transaktion selbst
+wird nicht künstlich offen gehalten. Timer-Tests verwenden Playwrights Uhr.
+Die Stresstests haben wegen der vielen echten UI-Aktionen längere Gesamtlaufzeiten,
+keine künstlichen Pausen und keine Wiederholungen fehlgeschlagener Tests.
+
+`interaction-tablet.spec.js` läuft zusätzlich in beiden Touch-Projekten pro
+Browser (810×1080 und 1080×810). Taps und Trefferpunktprüfungen erfassen verdeckte
+Controls, Editormodals, Trainerbuttons und die beiden Automatik-Schalter.
+Interaktionstests überwachen Console Errors, Page Errors und unbehandelte Promise
+Rejections. Nur die optionale Browseranfrage `/favicon.ico` erhält vom Test eine
+leere Antwort, damit die optionale Favicon-Suche keine Netzwerkfehlermeldung erzeugt.
+`tests/server.py` stellt ansonsten unverändert die statischen Repositorydateien bereit.
+
+Browser-Zurück ist bewusst charakterisiert: Die bestehende SPA erzeugt bei
+Tabwechseln keine History-Einträge. Browser-Zurück verlässt deshalb das aktuelle
+Dokument; intern dienen Tabs und „Beenden“ zur Navigation. Es wird kein Router
+und keine neue persistierte Zustandsstruktur eingeführt.

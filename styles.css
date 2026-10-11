@@ -109,7 +109,7 @@ body.trainer-mode main{max-width:1000px}
 body.trainer-mode .tabs{display:none}
 .trainer-shell{background:#fff;border:1px solid #d9dde5;border-radius:20px;padding:18px 22px 24px;min-height:72vh}
 .trainer-toolbar{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:12px;margin-bottom:16px}
-.compact-button{min-height:40px;padding:8px 12px}
+.compact-button{min-height:44px;padding:8px 12px}
 .trainer-scope{text-align:center;font-weight:700;color:#556}
 .language-chip{border-radius:999px;background:#eef5ff;padding:8px 12px;font-weight:800;color:#173b72;white-space:nowrap}
 .trainer-metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:9px}

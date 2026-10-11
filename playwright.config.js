@@ -19,7 +19,7 @@ module.exports = defineConfig({
     screenshot: 'only-on-failure',
   },
   webServer: {
-    command: 'python3 -m http.server 8765 --bind 127.0.0.1',
+    command: 'python3 tests/server.py',
     url: 'http://127.0.0.1:8765',
     reuseExistingServer: false,
     timeout: 10000,
@@ -27,13 +27,13 @@ module.exports = defineConfig({
     stderr: 'ignore',
   },
   projects: ['chromium', 'webkit'].flatMap(browserName => [
-    { name: browserName, testIgnore: '**/tablet.spec.js', use: { browserName, launchOptions: launchOptions(browserName) } },
+    { name: browserName, testIgnore: ['**/tablet.spec.js', '**/interaction-tablet.spec.js'], use: { browserName, launchOptions: launchOptions(browserName) } },
     ...[
       ['portrait', { width: 810, height: 1080 }],
       ['landscape', { width: 1080, height: 810 }],
     ].map(([orientation, viewport]) => ({
       name: `${browserName}-ipad-${orientation}`,
-      testMatch: '**/tablet.spec.js',
+      testMatch: ['**/tablet.spec.js', '**/interaction-tablet.spec.js'],
       use: { browserName, launchOptions: launchOptions(browserName), viewport, deviceScaleFactor: 2, isMobile: true, hasTouch: true },
     })),
   ]),

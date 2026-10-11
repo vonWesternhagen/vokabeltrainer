@@ -8,6 +8,9 @@ var S_VOCAB="vocab",S_PROGRESS="progress",S_COURSES="courses",S_EXAMS="exams";
 var SETTINGS_KEY="vokabeltrainer.settings.v4";
 var ACTIVE_COURSE_KEY="vokabeltrainer.activeCourse.v1";
 var db=null,vocab=[],courses=[],autoTimer=null,correctDetectTimer=null,ACTIVE_COURSE_ID=null;
+// Flüchtige Bedienzustände; gehören weder in Settings noch in ein Backup.
+var viewRevision=0,pendingStart=null,homeRender=0,overviewRender=0,examRender=0;
+var answerWork=Promise.resolve(),editBusy=false;
 var LEGACY_SEEDS={"le-projet":"le projet","le-metier":"le métier","le-domaine":"le domaine"};
 
 var session={
@@ -19,6 +22,38 @@ var session={
 function $(id){return document.getElementById(id)}
 function reqP(req){return new Promise(function(res,rej){req.onsuccess=function(){res(req.result)};req.onerror=function(){rej(req.error)}})}
 function os(name,mode){return db.transaction(name,mode||"readonly").objectStore(name)}
+
+function reportActionError(err){
+ var target=!$("editModal").hidden?$("editLocation"):!$("trainerView").hidden?$("feedback"):!$("learnView").hidden?$("scopeInfo"):$("appStatus");
+ target.textContent="Die Aktion konnte nicht abgeschlossen werden: "+(err&&err.message?err.message:String(err))+". Bitte erneut versuchen.";
+ console.warn("Bedienaktion fehlgeschlagen:",err)
+}
+function runAction(action){
+ try{return Promise.resolve(action()).catch(reportActionError)}catch(err){reportActionError(err);return Promise.resolve()}
+}
+function cancelSession(){
+ session.active=false;clearTimeout(autoTimer);clearTimeout(correctDetectTimer)
+}
+async function sessionAction(action){
+ var owner=session;
+ if(owner.busy||!owner.active)return;
+ owner.busy=true;
+ // Auch eine bereits begonnene Speicherung der vorigen Runde erst abschließen.
+ var previous=answerWork,release;answerWork=new Promise(function(resolve){release=resolve});
+ try{await previous;if(session===owner&&owner.active)await action(owner)}catch(err){if(session===owner&&owner.active)reportActionError(err)}
+ finally{owner.busy=false;release()}
+}
+async function editAction(action){
+ if(editBusy)return;editBusy=true;
+ try{await runAction(action)}finally{editBusy=false}
+}
+function startIsCurrent(ticket){return pendingStart===ticket&&ticket.revision===viewRevision&&ticket.course===activeCourseId()}
+async function beginLearning(action){
+ if(pendingStart&&startIsCurrent(pendingStart))return;
+ var ticket={revision:viewRevision,course:activeCourseId()};pendingStart=ticket;
+ try{await action(ticket)}catch(err){if(startIsCurrent(ticket))reportActionError(err)}
+ finally{if(pendingStart===ticket)pendingStart=null}
+}
 
 function openDb(){
  return new Promise(function(res,rej){
@@ -363,6 +398,7 @@ function currentScopeText(){
  return text
 }
 function resetSessionState(pool,label){
+ cancelSession();
  session={
   active:true,pool:pool,firstQueue:pool.slice(),seen:{},current:null,currentDirection:"DE_FR",
   attempts:0,correct:0,testResults:[],lastId:null,recentIds:[],firstRoundComplete:false,
@@ -416,24 +452,27 @@ async function selectWeakPool(available,requested,dir,mode){
  var picked=scored.slice(0,Math.min(requested,scored.length)).map(function(x){return x[0]});
  return await applyQuestionOrder(picked,available,mode,dir)
 }
-async function startLearningMode(mode){
+async function startLearningMode(mode){return beginLearning(function(ticket){return prepareLearningMode(mode,ticket)})}
+async function prepareLearningMode(mode,ticket){
  if(!activeCourseId()){$("scopeInfo").textContent="Bitte zuerst einen Kurs importieren oder auswählen.";return}
  var available=filtered(activeCourseId(),$("unitSelect").value,$("partSelect").value);
  if(!available.length){$("scopeInfo").textContent="Für diese Auswahl gibt es keine Vokabeln.";return}
 
+ $("scopeInfo").textContent="Lernrunde wird vorbereitet …";
  var requested=parseInt($("distinctCount").value,10);
  if(!Number.isFinite(requested)||requested<1)requested=10;
  requested=Math.min(requested,available.length);
 
  var dir=$("directionSelect").value,order=$("orderSelect").value,pool=[],label=currentScopeText();
  if(mode==="new"){
-  var result=await selectNewPool(available,requested,dir,order);pool=result.pool;
+  var result=await selectNewPool(available,requested,dir,order);if(!startIsCurrent(ticket))return;pool=result.pool;
   if(!pool.length){$("scopeInfo").textContent="Für diese Auswahl gibt es keine passenden Vokabeln.";return}
   label+=" · Neue Vokabeln";
   $("scopeInfo").textContent=result.newCount+" neue Vokabel"+(result.newCount===1?"":"n")+" · "+
    (pool.length-result.newCount)+" schwierige zum Auffüllen · "+pool.length+" insgesamt."
  }else{
   pool=await selectWeakPool(available,requested,dir,order);
+  if(!startIsCurrent(ticket))return;
   if(!pool.length){$("scopeInfo").textContent="In dieser Auswahl wurde noch keine Vokabel geübt. Starte zuerst „Neue Vokabeln lernen“.";return}
   label+=" · Schlecht gekonnte";
   $("scopeInfo").textContent=pool.length+" schlecht gekonnte Vokabeln ausgewählt."
@@ -458,6 +497,7 @@ function chooseDirection(){
 }
 async function chooseNext(){
  if(!session.active)return;
+ clearTimeout(autoTimer);clearTimeout(correctDetectTimer);
  var v=null;
  while(session.firstQueue.length){
   var candidate=session.firstQueue.shift();
@@ -481,7 +521,7 @@ function startAnotherRound(){
  $("roundCompletePanel").hidden=true;showView("learn")
 }
 function endSession(){
- session.active=false;$("roundCompletePanel").hidden=true;$("trainerExercise").hidden=false;
+ cancelSession();$("roundCompletePanel").hidden=true;$("trainerExercise").hidden=false;
  document.documentElement.lang="de";showView("home")
 }
 
@@ -509,7 +549,9 @@ function updateSessionBadges(){
  $("bigQuote").textContent=session.attempts?quote+" %":"–";
  $("progressFill").style.width=(total?Math.min(100,done/total*100):0)+"%"
 }
-function keepFocus(){setTimeout(function(){if(!$("trainerView").hidden&&session.active&&!session.awaitingChoice){try{$("answer").focus({preventScroll:true})}catch(e){$("answer").focus()}}},30)}
+function keepFocus(){var owner=session;setTimeout(function(){var focused=document.activeElement;
+ if(focused&&focused!==document.body&&focused!==$("answer")&&["startNew","startWeak","startExamLearning","check","showAnswer","markKnown","newRound"].indexOf(focused.id)<0)return;
+ if(session===owner&&!$("trainerView").hidden&&session.active&&!session.awaitingChoice){try{$("answer").focus({preventScroll:true})}catch(e){$("answer").focus()}}},30)}
 function nextDue(level){
  var days=[0,1,2,4,7,14][Math.max(0,Math.min(5,level))],d=new Date();d.setDate(d.getDate()+days);return d.toISOString()
 }
@@ -553,13 +595,15 @@ async function recordResult(v,d,kind){
  }
  await sp(p);return p
 }
-async function checkAnswer(){
+async function checkAnswer(){return sessionAction(checkAnswerNow)}
+async function checkAnswerNow(owner){
  if(!session.active||!session.current||session.awaitingChoice)return;
  if(session.currentResolved){await chooseNext();return}
  var v=session.current,d=session.currentDirection,g=norm($("answer").value),fb=$("feedback");
  if(!g){fb.className="feedback almost";fb.textContent="Bitte zuerst antworten.";keepFocus();return}
  var result=evaluateAnswer(v,d,g),expected=d==="DE_FR"?v.foreign:v.meanings.join(" / ");
  var p=await recordResult(v,d,result.kind);
+ if(session!==owner||!owner.active)return;
  session.lastResult={id:v.id,direction:d,kind:result.kind,canOverride:!!result.canOverride};
  session.attempts++;if(result.kind==="correct"){session.correct++}
  session.seen[v.id]=true;session.currentResolved=true;
@@ -573,9 +617,10 @@ async function checkAnswer(){
  else{fb.className="feedback bad";fb.innerHTML="✗ Noch nicht richtig.<br>Richtig: <strong>"+escapeHtml(expected)+"</strong>"}
  if(result.kind!=="correct"||!$("autoNext").checked)$("check").textContent="Weiter";
  keepFocus();
- if(result.kind==="correct"&&$("autoNext").checked){clearTimeout(autoTimer);autoTimer=setTimeout(function(){chooseNext()},750)}
+ if(result.kind==="correct"&&$("autoNext").checked){clearTimeout(autoTimer);autoTimer=setTimeout(function(){if(session===owner&&owner.active)runAction(chooseNext)},750)}
 }
-async function markCurrentKnown(){
+async function markCurrentKnown(){return sessionAction(markCurrentKnownNow)}
+async function markCurrentKnownNow(owner){
  var lr=session.lastResult;
  if(!session.active||!session.current||!lr||lr.id!==session.current.id||lr.kind!=="almost"||!lr.canOverride)return;
 
@@ -597,6 +642,7 @@ async function markCurrentKnown(){
   p.dueFRDE=nextDue(p.frDe)
  }
  await sp(p);
+ if(session!==owner||!owner.active)return;
 
  session.correct++;
  lr.kind="correct";lr.canOverride=false;
@@ -616,7 +662,7 @@ async function markCurrentKnown(){
 
  if($("autoNext").checked){
   clearTimeout(autoTimer);
-  autoTimer=setTimeout(function(){chooseNext()},650)
+  autoTimer=setTimeout(function(){if(session===owner&&owner.active)runAction(chooseNext)},650)
  }else{
   $("check").textContent="Weiter";
   keepFocus()
@@ -634,18 +680,22 @@ async function skipCurrent(){
  }
  await chooseNext()
 }
-async function revealCurrent(){
+async function revealCurrent(){return sessionAction(revealCurrentNow)}
+async function revealCurrentNow(owner){
  $("nearMissActions").hidden=true;
  if(!session.active||!session.current||session.awaitingChoice)return;
  var v=session.current,d=session.currentDirection;
  $("feedback").className="feedback almost";
  $("feedback").innerHTML="Antwort: <strong>"+escapeHtml(d==="DE_FR"?v.foreign:v.meanings.join(" / "))+"</strong><br><span class='small'>Als nicht gewusst markiert.</span>";
  if(!session.seen[v.id]){
-  await recordResult(v,d,"wrong");session.attempts++;session.seen[v.id]=true;session.currentResolved=true;updateSessionBadges()
+  await recordResult(v,d,"wrong");if(session!==owner||!owner.active)return;session.attempts++;session.seen[v.id]=true;session.currentResolved=true;updateSessionBadges()
  }
  $("check").textContent="Weiter";keepFocus()
 }
 function showView(name){
+ viewRevision++;
+ if(name!=="trainer")cancelSession();
+ if(name!=="vocab")closeEditModal();
  var views=["home","learn","trainer","plan","overview","vocab","data"];
  views.forEach(function(x){$(x+"View").hidden=x!==name});
  ["home","learn","plan","overview","vocab","data"].forEach(function(x){
@@ -653,10 +703,10 @@ function showView(name){
  });
  document.body.classList.toggle("trainer-mode",name==="trainer");
  if(name!=="trainer")document.documentElement.lang="de";
- if(name==="home")renderHome();
- if(name==="overview")renderOverview();
- if(name==="vocab")renderVocab();
- if(name==="plan")renderExamSummary()
+ if(name==="home")runAction(renderHome);
+ if(name==="overview")runAction(renderOverview);
+ if(name==="vocab")runAction(renderVocab);
+ if(name==="plan")runAction(renderExamSummary)
 }
 
 function populateCourseSelector(){
@@ -676,6 +726,7 @@ function updateCourseLabels(){
  $("exportCourse").textContent=activeCourseId()?name+" als Vokabeldatei exportieren":"Aktiven Kurs als Vokabeldatei exportieren"
 }
 async function renderHome(){
+ var render=++homeRender;
  populateCourseSelector();updateCourseLabels();
  var cid=activeCourseId(),all=cid?vocab.filter(function(v){return v.courseId===cid}):[];
  $("homeTotal").textContent=all.length;
@@ -683,8 +734,9 @@ async function renderHome(){
  for(var i=0;i<all.length;i++){
   var p=await gp(all[i].id);if(p.attempts===0)n++;if(isDue(p))d++;if(p.attempts>0&&Math.min(p.deFr,p.frDe)<=1)w++
  }
- $("homeNew").textContent=n;$("homeDue").textContent=d;$("homeWeak").textContent=w;
  var e=cid?await reqP(os(S_EXAMS).get(cid)):null;
+ if(render!==homeRender||cid!==activeCourseId())return;
+ $("homeNew").textContent=n;$("homeDue").textContent=d;$("homeWeak").textContent=w;
  if(e&&e.date){
   var days=Math.max(0,Math.ceil((new Date(e.date+"T12:00:00")-new Date())/86400000));
   $("homeExamText").textContent="Klassenarbeit in "+days+" Tag"+(days===1?"":"en")+" · Lernpensum planen"
@@ -692,7 +744,9 @@ async function renderHome(){
  $("appStatus").textContent="✓ Version 4.5 läuft · "+(cid?courseName(cid)+" · "+all.length+" Vokabeln":"noch keine Vokabeln importiert")
 }
 async function switchActiveCourse(id){
- setActiveCourse(id);saveSettings();populateAllSelectors();updateCourseLabels();await renderHome()
+ viewRevision++;cancelSession();setActiveCourse(id);
+ $("unitSelect").value="alle";$("overviewUnit").value="alle";
+ populateAllSelectors();saveSettings();$("scopeInfo").textContent="";updateCourseLabels();await renderHome()
 }
 function fmtDate(iso){if(!iso)return"–";try{return new Intl.DateTimeFormat("de-DE",{day:"2-digit",month:"2-digit",year:"2-digit"}).format(new Date(iso))}catch(e){return"–"}}
 
@@ -701,10 +755,13 @@ function successPercent(p){
  return Math.max(0,Math.min(100,Math.round((p.correct+0.5*p.almost)/p.attempts*100)))
 }
 async function renderOverview(){
+ var render=++overviewRender,cid=activeCourseId();
  var body=$("overviewBody");body.innerHTML="";
  if(!activeCourseId())return;
  var list=filtered(activeCourseId(),$("overviewUnit").value,$("overviewPart").value),rows=[];
  for(var i=0;i<list.length;i++){var v=list[i],p=await gp(v.id);rows.push({v:v,p:p,pct:successPercent(p)})}
+ if(render!==overviewRender||cid!==activeCourseId())return;
+ body.innerHTML="";
  var mode=$("overviewSort").value;
  if(mode==="weakest")rows.sort(function(a,b){return(a.pct===null?-1:a.pct)-(b.pct===null?-1:b.pct)});
  else if(mode==="strongest")rows.sort(function(a,b){return(b.pct===null?-1:b.pct)-(a.pct===null?-1:a.pct)});
@@ -836,10 +893,13 @@ async function deleteExam(){
  await reqP(os(S_EXAMS,"readwrite").delete(activeCourseId()));await renderExamSummary()
 }
 async function renderExamSummary(){
+ var render=++examRender;
  var cid=activeCourseId(),e=cid?await reqP(os(S_EXAMS).get(cid)):null,box=$("examSummary");
+ if(render!==examRender||cid!==activeCourseId())return;
  if(!e){$("examDate").value="";populateExamScopes([]);box.textContent=cid?"Für "+courseName(cid)+" ist noch keine Klassenarbeit gespeichert.":"Bitte zuerst einen Kurs importieren oder auswählen.";return}
  $("examDate").value=e.date;var scopes=oldExamScopes(e);populateExamScopes(scopes);
  var pool=poolForScopes(scopes),st=await computeExamStats(pool,e.date);
+ if(render!==examRender||cid!==activeCourseId())return;
  var title=document.createElement("strong"),target=document.createElement("strong");
  title.textContent=courseName(cid)+" · "+scopes.length+" Stoffbereich"+(scopes.length===1?"":"e");
  target.textContent="Richtwert heute: "+st.dailyTarget+" verschiedene Vokabeln";
@@ -848,11 +908,14 @@ async function renderExamSummary(){
   document.createTextNode(pool.length+" verschiedene Vokabeln im Stoff · "+st.newCount+" noch nie geübt · "+st.weak+" schwach · "+st.due+" fällig."),document.createElement("br"),
   target,document.createTextNode(", damit der gesamte Stoff bis zur Arbeit mindestens einmal durchläuft."))
 }
-async function startExamLearning(){
+async function startExamLearning(){return beginLearning(prepareExamLearning)}
+async function prepareExamLearning(ticket){
  if(!activeCourseId())return alert("Bitte zuerst einen Kurs importieren oder auswählen.");
- var e=await reqP(os(S_EXAMS).get(activeCourseId()));if(!e)return alert("Bitte zuerst eine Klassenarbeit speichern.");
+ var e=await reqP(os(S_EXAMS).get(activeCourseId()));if(!startIsCurrent(ticket))return;
+ if(!e){$("examSummary").textContent="Bitte zuerst eine Klassenarbeit speichern.";return}
  var pool=poolForScopes(oldExamScopes(e)),st=await computeExamStats(pool,e.date);if(!pool.length)return alert("Im gespeicherten Stoff wurden keine Vokabeln gefunden.");
  pool=await priorityPool(pool);pool=pool.slice(0,Math.min(pool.length,Math.max(1,st.dailyTarget)));
+ if(!startIsCurrent(ticket))return;
  await startCustomSession(pool,"Klassenarbeit · heutiges Pensum")
 }
 
@@ -1139,8 +1202,8 @@ function populateAllSelectors(){
  populateExamScopes([])
 }
 function bindUnitPart(unitId,partId,afterChange){
- $(unitId).addEventListener("change",function(){populatePart($(partId),activeCourseId(),$(unitId).value,true);saveSettings();if(afterChange)afterChange()});
- $(partId).addEventListener("change",function(){saveSettings();if(afterChange)afterChange()})
+ $(unitId).addEventListener("change",function(){populatePart($(partId),activeCourseId(),$(unitId).value,true);saveSettings();if(afterChange)runAction(afterChange)});
+ $(partId).addEventListener("change",function(){saveSettings();if(afterChange)runAction(afterChange)})
 }
 
 
@@ -1166,11 +1229,8 @@ $("answer").addEventListener("input",scheduleExactAutoCheck);
 $("answer").addEventListener("keydown",function(e){
  if(e.key==="Enter"&&!e.shiftKey){
   e.preventDefault();clearTimeout(correctDetectTimer);
-  if(session.currentResolved)chooseNext();else checkAnswer()
+  if(!session.busy){if(session.currentResolved)runAction(chooseNext);else checkAnswer()}
  }
-});
-$("answer").addEventListener("blur",function(){
- setTimeout(function(){if(!$("trainerView").hidden&&session.active&&!session.awaitingChoice)keepFocus()},60)
 });
 ["check","showAnswer","markKnown","continueWeak","endSession"].forEach(preserveAnswerFocusOnButton);
 
@@ -1188,7 +1248,7 @@ $("tabPlan").onclick=function(){showView("plan")};
 $("tabOverview").onclick=function(){showView("overview")};
 $("tabVocab").onclick=function(){showView("vocab")};
 $("tabData").onclick=function(){showView("data")};
-$("activeCourseSelect").onchange=function(){switchActiveCourse(this.value)};
+$("activeCourseSelect").onchange=function(){var id=this.value;runAction(function(){return switchActiveCourse(id)})};
 $("homeLearn").onclick=function(){showView("learn")};
 $("homeDueLearn").onclick=function(){showView("learn")};
 $("homePlan").onclick=function(){showView("plan")};
@@ -1197,28 +1257,28 @@ $("homeOverview").onclick=function(){showView("overview")};
 $("homeData").onclick=function(){showView("data")};
 $("leaveTrainer").onclick=function(){endSession()};
 
-$("refreshOverview").onclick=renderOverview;
-$("overviewSort").onchange=function(){saveSettings();renderOverview()};
+$("refreshOverview").onclick=function(){runAction(renderOverview)};
+$("overviewSort").onchange=function(){saveSettings();runAction(renderOverview)};
 
 $("vocabSearch").oninput=renderVocab;
 $("newVocab").onclick=newVocab;
-$("saveEdit").onclick=saveEdit;
+$("saveEdit").onclick=function(){editAction(saveEdit)};
 $("cancelEdit").onclick=closeEditModal;
 $("closeEdit").onclick=closeEditModal;
-$("deleteVocab").onclick=deleteVocab;
+$("deleteVocab").onclick=function(){editAction(deleteVocab)};
 $("editUnit").onchange=populateEditParts;
 $("editPart").onchange=updateEditLocation;
 $("editModal").addEventListener("click",function(e){if(e.target===$("editModal"))closeEditModal()});
 
-$("saveExam").onclick=saveExam;
-$("deleteExam").onclick=deleteExam;
+$("saveExam").onclick=function(){runAction(saveExam)};
+$("deleteExam").onclick=function(){runAction(deleteExam)};
 $("startExamLearning").onclick=startExamLearning;
 $("selectAllExamScopes").onclick=function(){[].slice.call($("examScopeList").querySelectorAll('input[type="checkbox"]')).forEach(function(x){x.checked=true})};
 $("clearExamScopes").onclick=function(){[].slice.call($("examScopeList").querySelectorAll('input[type="checkbox"]')).forEach(function(x){x.checked=false})};
 
-$("exportBackup").onclick=function(){exportBackup()};
-$("exportCourse").onclick=exportCurrentCourse;
-$("reset").onclick=resetAll;
+$("exportBackup").onclick=function(){runAction(function(){return exportBackup()})};
+$("exportCourse").onclick=function(){runAction(exportCurrentCourse)};
+$("reset").onclick=function(){runAction(resetAll)};
 $("vocabImportFile").onchange=async function(e){
  var f=e.target.files&&e.target.files[0];if(!f)return;
  $("vocabImportResult").textContent="Importiere "+f.name+" …";
@@ -1246,7 +1306,7 @@ $("backupRestoreFile").onchange=async function(e){
   bindUnitPart("unitSelect","partSelect",null);bindUnitPart("overviewUnit","overviewPart",renderOverview);
   applySettings(loadSavedSettings());
   await renderExamSummary();
-  showView("home");await renderHome()
+  if(viewRevision===0)showView("home");await renderHome()
  }catch(err){
   $("appStatus").textContent="Startfehler: "+err.message;$("appStatus").style.background="#fdeaea";console.error(err)
  }
