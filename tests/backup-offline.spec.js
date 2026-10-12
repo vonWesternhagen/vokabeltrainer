@@ -14,7 +14,7 @@ test('Vollständiges Backup stellt Kurse, Vokabeln, Lernen, Planung und Einstell
   await page.fill('#examDate', '2030-12-01');await page.click('#selectAllExamScopes');await page.click('#saveExam');
   await expect(page.locator('#examSummary')).toContainText('2030-12-01');
   const backup = await exportBackup(page);
-  expect(backup.backupType).toBe('full-backup');expect(backup.appVersion).toBe('4.5');
+  expect(backup.backupType).toBe('full-backup');expect(backup.appVersion).toBe('4.5.1');
   const before = await snapshot(page);
   await page.click('#reset');await expect(page.locator('#homeTotal')).toHaveText('0');
   expect((await snapshot(page)).vocab).toHaveLength(0);
@@ -68,7 +68,7 @@ test('Service Worker und Offline-Neuladen lesen vorhandene IndexedDB-Daten', asy
   const origin = `http://127.0.0.1:${server.address().port}`;
   try {
     await page.goto(origin);
-    await expect(page.locator('#appStatus')).toContainText('Version 4.5 läuft');
+    await expect(page.locator('#appStatus')).toContainText('Version 4.5.1 läuft');
     await importCourse(page, course([entry('offline')], 'offline', 'Offlinekurs'));
     await page.evaluate(() => navigator.serviceWorker.ready);
     await page.waitForFunction(() => navigator.serviceWorker.controller?.state === 'activated');
@@ -78,8 +78,8 @@ test('Service Worker und Offline-Neuladen lesen vorhandene IndexedDB-Daten', asy
       const cache = await caches.open(names.find(n => n.startsWith('vokabeltrainer-')));
       return { names, paths: (await cache.keys()).map(r => new URL(r.url).pathname + new URL(r.url).search) };
     });
-    expect(cachesBefore.names).toContain('vokabeltrainer-v45-stable1');
-    expect(cachesBefore.paths).toEqual(expect.arrayContaining(['/index.html', '/app.js?v=45.1', '/styles.css?v=45.1', '/manifest.webmanifest']));
+    expect(cachesBefore.names).toContain('vokabeltrainer-v4.5.1');
+    expect(cachesBefore.paths).toEqual(expect.arrayContaining(['/index.html', '/app.js?v=4.5.1', '/styles.css?v=4.5.1', '/manifest.webmanifest']));
     await page.evaluate(() => { window.beforeOfflineNavigation = true; });
     await stopServer();
     // Node-fetch umgeht den Browsercache/SW: der Origin ist wirklich unerreichbar.
@@ -104,10 +104,12 @@ test('Cache-Aktivierung entfernt alte eigene Versionen und erhält fremde Caches
   await page.evaluate(async () => {
     await navigator.serviceWorker.ready;
     await caches.open('vokabeltrainer-v45');
+    await caches.open('vokabeltrainer-v45-stable1');
     await caches.open('andere-app');
     for (const registration of await navigator.serviceWorker.getRegistrations()) await registration.unregister();
   });
   await page.reload();await page.evaluate(() => navigator.serviceWorker.ready);
   await expect.poll(() => page.evaluate(() => caches.keys())).not.toContain('vokabeltrainer-v45');
-  expect(await page.evaluate(() => caches.keys())).toEqual(expect.arrayContaining(['vokabeltrainer-v45-stable1', 'andere-app']));
+  expect(await page.evaluate(() => caches.keys())).not.toContain('vokabeltrainer-v45-stable1');
+  expect(await page.evaluate(() => caches.keys())).toEqual(expect.arrayContaining(['vokabeltrainer-v4.5.1', 'andere-app']));
 });

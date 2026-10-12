@@ -1,4 +1,4 @@
-Vokabeltrainer 4.5 – Startfehler behoben
+Vokabeltrainer 4.5.1 – Startfehler behoben
 
 Gefundene Ursache:
 Beim Struktur-Umbau in V4.3 wurde die Funktion populateUnit() versehentlich entfernt.
@@ -15,4 +15,4 @@ Behoben:
 - zusätzlich einen alten, nicht mehr gültigen startSession()-Aufruf nach Backup-Wiederherstellung entfernt.
 - populateAllSelectors() defensiver gemacht.
 
-Nach GitHub-Upload mit ?v=45 öffnen.
+Nach GitHub-Upload mit ?v=4.5.1 öffnen.

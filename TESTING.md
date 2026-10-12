@@ -1,4 +1,4 @@
-# Vokabeltrainer 4.5: Entwicklung und Tests
+# Vokabeltrainer 4.5.1: Entwicklung und Tests
 
 Die Anwendung bleibt eine statische Browser-App ohne Build-Schritt oder
 Produktionsabhängigkeiten. Node.js und Playwright werden nur zum Testen benötigt.
@@ -124,3 +124,12 @@ Browser-Zurück ist bewusst charakterisiert: Die bestehende SPA erzeugt bei
 Tabwechseln keine History-Einträge. Browser-Zurück verlässt deshalb das aktuelle
 Dokument; intern dienen Tabs und „Beenden“ zur Navigation. Es wird kein Router
 und keine neue persistierte Zustandsstruktur eingeführt.
+
+## Versionierung ab 4.5.1
+
+Jede Änderung erhält eine neue Versionsnummer; kleine Änderungen erhöhen die Patch-Version.
+Dies gilt für Programm, Verhalten, UI, Tests, technische Implementierung und
+Release-Artefakte (z. B. 4.5.1 → 4.5.2 → 4.5.3). App-/Paketversion, sichtbare
+Versionsanzeigen, Asset-URLs, Service-Worker-Cache, Testerwartungen und aktuelle
+Dokumentation werden gemeinsam aktualisiert. Daten- und Schemaversionen sind
+davon unabhängig und werden nicht allein wegen eines Releases geändert.
