@@ -1,18 +1,18 @@
-Vokabeltrainer 4.5.1 – Startfehler behoben
+Vokabeltrainer 4.5.7
 
-Gefundene Ursache:
-Beim Struktur-Umbau in V4.3 wurde die Funktion populateUnit() versehentlich entfernt.
-Die Oberfläche rief sie beim Start weiterhin auf. Dadurch:
-- Startfehler „Can't find variable: populateUnit“
-- keine Optionen unter „Unité / Modul“
+Statische, lokal arbeitende PWA. index.html über einen HTTP(S)-Server öffnen.
+Kein Bundler und keine Produktionsabhängigkeiten erforderlich.
 
-Behoben:
-- populateUnit() vollständig wiederhergestellt.
-- „Alle Vokabeln“ + vorhandene Unités/Module werden wieder aufgebaut.
-- Französisch 6 mit den aktuellen 79 Vokabeln ergibt:
-  „Alle Vokabeln“ und „Unité 0“.
-- Unité 0 setzt den Teilbereich automatisch auf „Auftakt“.
-- zusätzlich einen alten, nicht mehr gültigen startSession()-Aufruf nach Backup-Wiederherstellung entfernt.
-- populateAllSelectors() defensiver gemacht.
+- Übersicht mit Lernstatistik; direkte Bearbeitung in der Vokabelübersicht.
+- Mehrere Klassenarbeiten; Lernen mit der eingestellten Rundengröße.
+- Französische und deutsche Varianten mit kompatiblem Bestandsdatenmodell.
+- Importvorschau: intelligent ergänzen, zusätzlich einlesen oder Konflikte prüfen.
+- Kurs- und Gesamtsicherung, validierte Wiederherstellung, lokale Snapshots.
+- Notfallbackup bleibt nach „Alle Daten zurücksetzen“ verfügbar.
 
-Nach GitHub-Upload mit ?v=4.5.1 öffnen.
+Bestehende Kurse, Lernstände und Klassenarbeiten bleiben erhalten.
+Es werden keine Start-/Demo-Vokabeln automatisch eingefügt.
+R2 ist nicht produktiv angebunden. Keine automatische Cloud-Sicherung.
+
+Tests, Datenregeln und Grenzen: TESTING.md.
+Nach Veröffentlichung bei Bedarf mit ?v=4.5.7 öffnen.

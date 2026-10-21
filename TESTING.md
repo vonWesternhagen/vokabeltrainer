@@ -1,4 +1,4 @@
-# Vokabeltrainer 4.5.1: Entwicklung und Tests
+# Vokabeltrainer 4.5.7: Entwicklung und Tests
 
 Die Anwendung bleibt eine statische Browser-App ohne Build-Schritt oder
 Produktionsabhängigkeiten. Node.js und Playwright werden nur zum Testen benötigt.
@@ -36,6 +36,8 @@ die betreffenden Tests werden nicht stillschweigend übersprungen.
 
 ## Ausführen
 
+- `npm run check`: Syntax der Produktionsskripte.
+- `npm run test:unit`: reine Varianten-/Import-/Backup-Funktionen.
 - `npm test`: alle Projekte.
 - `npm run test:chromium`: Chromium inklusive beider Tablet-Viewports.
 - `npm run test:webkit`: WebKit inklusive beider Tablet-Viewports.
@@ -125,11 +127,59 @@ Tabwechseln keine History-Einträge. Browser-Zurück verlässt deshalb das aktue
 Dokument; intern dienen Tabs und „Beenden“ zur Navigation. Es wird kein Router
 und keine neue persistierte Zustandsstruktur eingeführt.
 
-## Versionierung ab 4.5.1
+## Versionierung ab 4.5.7
 
 Jede Änderung erhält eine neue Versionsnummer; kleine Änderungen erhöhen die Patch-Version.
 Dies gilt für Programm, Verhalten, UI, Tests, technische Implementierung und
-Release-Artefakte (z. B. 4.5.1 → 4.5.2 → 4.5.3). App-/Paketversion, sichtbare
+Release-Artefakte (z. B. 4.5.5 → 4.5.6 → 4.5.7). App-/Paketversion, sichtbare
 Versionsanzeigen, Asset-URLs, Service-Worker-Cache, Testerwartungen und aktuelle
 Dokumentation werden gemeinsam aktualisiert. Daten- und Schemaversionen sind
 davon unabhängig und werden nicht allein wegen eines Releases geändert.
+
+
+## Erweiterung 4.5.7
+
+`data-core.js` enthält browserunabhängige Varianten-, Import- und Backupoperationen.
+Die bisherige Primärform `foreign` und die Liste `meanings` bleiben erhalten;
+`foreignVariants` ergänzt weitere französische Formen. Bestehende IDs und
+Lernstände werden beim Start nicht ersetzt. IndexedDB-Version 3 ergänzt nur die
+Stores `history` und `snapshots`; bekannte alte `fr`/`de`-Datensätze werden erst
+nach einem Snapshot angepasst. Keine Seed-Daten werden eingefügt oder entfernt.
+
+Intelligente Importe verbinden transitiv über gemeinsame FR-/DE-Varianten.
+Bei mehreren bestehenden Einträgen bleibt eine bestehende ID erhalten;
+Versuchszähler werden summiert, Lernstufen konservativ auf das Minimum gesetzt,
+früheste Fälligkeit und jüngster Lernzeitpunkt erhalten. Quellmetadaten und
+zusammengeführte Lernstände werden zusätzlich archiviert. Akzente bleiben bei
+der Identitätsprüfung unterscheidbar. Getrenntes Einlesen ist ausdrücklich wählbar.
+
+Kurssicherungen (Schema 1) enthalten die Rohdaten einschließlich Lernhistorie und
+Klassenarbeiten. Gesamtsicherungen verwenden Schema 7; ältere unterstützte
+Formate bleiben lesbar. Die Summary ist abgeleitet und ersetzt keine Rohdaten.
+Automatische Sicherungen halten zehn Snapshots je Kurs; das letzte Notfallbackup
+vor Reset wird separat behalten. Browserdaten löschen entfernt auch diese lokalen
+Sicherungen: wichtige Backups deshalb zusätzlich als Datei exportieren.
+
+`data-safety.spec.js` läuft in allen sechs Browser-/Touch-Projekten und prüft
+40-Vokabeln-Klassenarbeiten, Sessiongröße, Metadatenlöschung, Importstrategien,
+beidseitige Variantenbewertung, verzögerte Klassenarbeitsabfragen, echte Touch-Taps
+im Übersichtseditor, Altdatenmigration und Weiterlernen, Sicherung mit gefüllter
+Lernhistorie, Datenänderung und Restore, Retention, Speicherfehler und Notfallreset.
+Die übrigen Regressionen bleiben Bestandteil der vollständigen Suite.
+
+Für diese isolierte Cloud-Testumgebung wurden fehlende WebKit-Bibliotheken aus
+offiziellen Debian-Repository-Metadaten mit SHA-256-Prüfung heruntergeladen und unter
+`/tmp/pwa-libs/root` extrahiert. Verknüpfungen in der ignorierten Browserdistribution
+stellen sie auch dem WebKit-Launcher bereit. Der systemweite ldconfig-Cache kann
+hier nicht ergänzt werden; nach direkter Ladeprüfung wurde daher nur Playwrights
+Host-Vorabprüfung deaktiviert. Keine Browsertests werden übersprungen.
+
+Produktionsprüfung: Syntax, Manifest-JSON, sämtliche Service-Worker-Precache-Dateien,
+Versionskonsistenz sowie echte Browserstarts, Cachewechsel und Offline-Neuladen.
+Ein `npm run build` existiert bei dieser statischen Anwendung nicht.
+
+Der Editor fokussiert das erste Feld synchron beim Öffnen. Ein Regressionstest
+prüft mit kontrollierter Uhr, dass spätere Fokuswechsel und Schließen erhalten bleiben.
+
+Ein verzögertes Lesen der Snapshot-Liste darf die laufende Profileingabe nicht
+überschreiben; der anschließende Kursexport wird in demselben Szenario geprüft.

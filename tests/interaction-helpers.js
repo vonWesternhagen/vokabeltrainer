@@ -32,12 +32,13 @@ async function prepareCourses(page) {
 // Kein Produktions-Hook, keine Sleeps, keine offen gehaltene IDB-Transaktion.
 async function holdRead(page, store = 'progress', onLoad = false) {
   const install = store => {
-    const original = IDBObjectStore.prototype.get;
+    const method = ['exams','snapshots'].includes(store) ? 'getAll' : 'get';
+    const original = IDBObjectStore.prototype[method];
     window.heldRead = { waiting: false, released: false };
-    IDBObjectStore.prototype.get = function (...args) {
+    IDBObjectStore.prototype[method] = function (...args) {
       const request = original.apply(this, args);
       if (this.name === store) {
-        IDBObjectStore.prototype.get = original;
+        IDBObjectStore.prototype[method] = original;
         Object.defineProperty(request, 'onsuccess', { set(callback) {
           request.addEventListener('success', event => {
             window.heldRead.waiting = true;

@@ -1,14 +1,17 @@
 (function(){
 "use strict";
 
-var APP_VERSION="4.5.1";
+var APP_VERSION="4.5.7";
 var DB_NAME="VokabeltrainerTest";
-var DB_VERSION=2;
+var DB_VERSION=3;
+var S_HISTORY="history",S_SNAPSHOTS="snapshots",historyWork=Promise.resolve();
+var D=DataCore;
 var S_VOCAB="vocab",S_PROGRESS="progress",S_COURSES="courses",S_EXAMS="exams";
 var SETTINGS_KEY="vokabeltrainer.settings.v4";
 var ACTIVE_COURSE_KEY="vokabeltrainer.activeCourse.v1";
 var db=null,vocab=[],courses=[],autoTimer=null,correctDetectTimer=null,ACTIVE_COURSE_ID=null;
 // Flüchtige Bedienzustände; gehören weder in Settings noch in ein Backup.
+var examFormRevision=0;
 var viewRevision=0,pendingStart=null,homeRender=0,overviewRender=0,examRender=0;
 var answerWork=Promise.resolve(),editBusy=false;
 var LEGACY_SEEDS={"le-projet":"le projet","le-metier":"le métier","le-domaine":"le domaine"};
@@ -32,11 +35,11 @@ function runAction(action){
  try{return Promise.resolve(action()).catch(reportActionError)}catch(err){reportActionError(err);return Promise.resolve()}
 }
 function cancelSession(){
- session.active=false;clearTimeout(autoTimer);clearTimeout(correctDetectTimer)
+ if(session.active)finishHistory(session,false);session.active=false;clearTimeout(autoTimer);clearTimeout(correctDetectTimer)
 }
 async function sessionAction(action){
  var owner=session;
- if(owner.busy||!owner.active)return;
+ if(dataBusy||owner.busy||!owner.active)return;
  owner.busy=true;
  // Auch eine bereits begonnene Speicherung der vorigen Runde erst abschließen.
  var previous=answerWork,release;answerWork=new Promise(function(resolve){release=resolve});
@@ -44,11 +47,13 @@ async function sessionAction(action){
  finally{owner.busy=false;release()}
 }
 async function editAction(action){
+ if(dataBusy)return;
  if(editBusy)return;editBusy=true;
  try{await runAction(action)}finally{editBusy=false}
 }
 function startIsCurrent(ticket){return pendingStart===ticket&&ticket.revision===viewRevision&&ticket.course===activeCourseId()}
 async function beginLearning(action){
+ if(dataBusy)return;
  if(pendingStart&&startIsCurrent(pendingStart))return;
  var ticket={revision:viewRevision,course:activeCourseId()};pendingStart=ticket;
  try{await action(ticket)}catch(err){if(startIsCurrent(ticket))reportActionError(err)}
@@ -64,6 +69,8 @@ function openDb(){
    if(!d.objectStoreNames.contains(S_PROGRESS))d.createObjectStore(S_PROGRESS,{keyPath:"id"});
    if(!d.objectStoreNames.contains(S_COURSES))d.createObjectStore(S_COURSES,{keyPath:"id"});
    if(!d.objectStoreNames.contains(S_EXAMS))d.createObjectStore(S_EXAMS,{keyPath:"id"});
+   if(!d.objectStoreNames.contains(S_HISTORY))d.createObjectStore(S_HISTORY,{keyPath:"id"});
+   if(!d.objectStoreNames.contains(S_SNAPSHOTS))d.createObjectStore(S_SNAPSHOTS,{keyPath:"id"});
   };
   r.onsuccess=function(){res(r.result)};
   r.onerror=function(){rej(r.error)}
@@ -71,21 +78,13 @@ function openDb(){
 }
 
 async function prepareData(){
- // Historische Prototyp-Startvokabeln endgültig entfernen.
- for(var id in LEGACY_SEEDS){
-  var legacy=await reqP(os(S_VOCAB).get(id));
-  if(legacy && (legacy.seed===true || (legacy.courseId==="franzoesisch" && norm(legacy.foreign)===norm(LEGACY_SEEDS[id])))){
-   await reqP(os(S_VOCAB,"readwrite").delete(id));
-   await reqP(os(S_PROGRESS,"readwrite").delete(id))
-  }
- }
-
  // Datenstruktur vereinheitlichen:
  // unitId = nur Unité/Modul, part = Teilbereich, sectionName = optionale Buch-Unterüberschrift.
  var all=await reqP(os(S_VOCAB).getAll());
- var tx=db.transaction(S_VOCAB,"readwrite"),store=tx.objectStore(S_VOCAB),changed=0;
+ var changes=[];
  all.forEach(function(v){
   var dirty=false,uid=String(v.unitId||"");
+  if(!v.foreign&&v.fr){v=D.normalize(v);dirty=true;}
 
   // Französisch 6, Seiten 176–178: Auftakt VOR Unité 1 => Unité 0.
   if(v.courseId==="franzoesisch-6" && (/^p17[678]-/.test(uid) || (Number(v.page)>=176&&Number(v.page)<=178))){
@@ -101,9 +100,9 @@ async function prepareData(){
     if(v.part!=="alle"){v.part="alle";dirty=true}
    }
   }
-  if(dirty){store.put(v);changed++}
+  if(dirty)changes.push(v)
  });
- await new Promise(function(res,rej){tx.oncomplete=res;tx.onerror=function(){rej(tx.error)}});
+ if(changes.length){await storeLocalSnapshot("before-migration");await writeRecords([[S_VOCAB,changes]]);}
 }
 function usedCourseIds(){return Array.from(new Set(vocab.map(function(v){return v.courseId}).filter(Boolean)))}
 function courseHasVocab(id){return !!id && vocab.some(function(v){return v.courseId===id})}
@@ -260,7 +259,7 @@ function fillSelect(sel,items,allLabel){
  if([].slice.call(sel.options).some(function(o){return o.value===old}))sel.value=old
 }
 function unitsForCourse(courseId){
- return Array.from(new Set(vocab.filter(function(v){return courseId==="alle"||v.courseId===courseId}).map(function(v){return unitGroup(v)})))
+ return Array.from(new Set(vocab.filter(function(v){return courseId==="alle"||v.courseId===courseId}).flatMap(function(v){return [v].concat(v.locations||[]).map(unitGroup)})))
   .sort(function(a,b){
    var au=String(a).match(/^unite-(\d+)$/),bu=String(b).match(/^unite-(\d+)$/);
    if(au&&bu)return Number(au[1])-Number(bu[1]);
@@ -281,8 +280,8 @@ function populateUnit(sel,courseId,includeAll){
 function partsFor(courseId,unit){
  if(isModule(unit)||unit==="unite-0")return unit==="unite-0"?["auftakt"]:[];
  return Array.from(new Set(vocab.filter(function(v){
-  return(courseId==="alle"||v.courseId===courseId)&&(unit==="alle"||unitGroup(v)===unit)
- }).map(function(v){return partGroup(v)}))).filter(function(x){return x!=="alle"}).sort(function(a,b){
+  return(courseId==="alle"||v.courseId===courseId)
+ }).flatMap(function(v){return [v].concat(v.locations||[]).filter(function(x){return unit==="alle"||unitGroup(x)===unit}).map(partGroup)}))).filter(function(x){return x!=="alle"}).sort(function(a,b){
   var order={"auftakt":1,"vocabulaire-thematique":2,"volet-1":3,"volet-2":4,"volet-3":5,"sonstiges":9};
   return(order[a]||99)-(order[b]||99)||a.localeCompare(b)
  })
@@ -303,7 +302,7 @@ function populatePart(sel,courseId,unit,includeAll){
 }
 function filtered(courseId,unit,part){
  return vocab.filter(function(v){
-  return(courseId==="alle"||v.courseId===courseId)&&(unit==="alle"||unitGroup(v)===unit)&&(part==="alle"||partGroup(v)===part)
+  return(courseId==="alle"||v.courseId===courseId)&&[v].concat(v.locations||[]).some(function(x){return(unit==="alle"||unitGroup(x)===unit)&&(part==="alle"||partGroup(x)===part)})
  })
 }
 
@@ -400,6 +399,7 @@ function currentScopeText(){
 function resetSessionState(pool,label){
  cancelSession();
  session={
+  historyId:crypto.randomUUID(),startedAt:new Date().toISOString(),startedTick:performance.now(),courseId:activeCourseId(),durationMs:0,visibleTick:document.hidden?null:performance.now(),
   active:true,pool:pool,firstQueue:pool.slice(),seen:{},current:null,currentDirection:"DE_FR",
   attempts:0,correct:0,testResults:[],lastId:null,recentIds:[],firstRoundComplete:false,
   awaitingChoice:false,sourceLabel:label||"",currentResolved:false,lastResult:null
@@ -486,7 +486,7 @@ async function startWeakSession(){await startLearningMode("weak")}
 
 async function startCustomSession(pool,label){
  if(!pool.length)return;
- $("distinctCount").value=pool.length;
+
  resetSessionState(pool,label);
  showView("trainer");saveSettings();await chooseNext()
 }
@@ -508,7 +508,7 @@ async function chooseNext(){
  await renderCurrent()
 }
 function finishRound(){
- session.active=false;session.current=null;
+ finishHistory(session,true);session.active=false;session.current=null;
  clearTimeout(autoTimer);clearTimeout(correctDetectTimer);
  $("trainerExercise").hidden=true;
  $("roundCompletePanel").hidden=false;
@@ -532,7 +532,7 @@ async function renderCurrent(){
  $("nearMissActions").hidden=true;
  clearTimeout(correctDetectTimer);
  $("check").textContent="Prüfen";
- $("prompt").textContent=fr?v.meanings.join(" / "):v.foreign;
+ $("prompt").textContent=fr?v.meanings.join(" / "):D.french(v).join(" / ");
  $("directionLabel").textContent=fr?"Deutsch → Französisch":"Französisch → Deutsch";
  $("answer").lang=fr?"fr-FR":"de-DE";
  $("answer").setAttribute("lang",fr?"fr-FR":"de-DE");
@@ -558,15 +558,15 @@ function nextDue(level){
 function evaluateAnswer(v,d,g){
  if(d==="DE_FR"){
   // Satzzeichen, Leerzeichen und Akzente werden komplett ignoriert.
-  if(looseNorm(g)===looseNorm(v.foreign))return{kind:"correct",reason:"",canOverride:false};
+  if(D.french(v).some(function(x){return looseNorm(g)===looseNorm(x)}))return{kind:"correct",reason:"",canOverride:false};
 
   // Ein fehlender/anderer Artikel ist nur eine kleine Abweichung.
-  if(looseNorm(stripFrenchArticle(g))===looseNorm(stripFrenchArticle(v.foreign))){
+  if(D.french(v).some(function(x){return looseNorm(stripFrenchArticle(g))===looseNorm(stripFrenchArticle(x))})){
    return{kind:"almost",reason:"Nur der Artikel unterscheidet sich.",canOverride:true}
   }
 
   // Kleine Tipp-/Scribble-Abweichungen dürfen vom Lernenden selbst als gewusst markiert werden.
-  if(nearEnough(g,v.foreign)){
+  if(D.french(v).some(function(x){return nearEnough(g,x)})){
    return{kind:"almost",reason:"Nur eine kleine Schreibabweichung.",canOverride:true}
   }
   return{kind:"wrong",reason:"",canOverride:false}
@@ -601,7 +601,7 @@ async function checkAnswerNow(owner){
  if(session.currentResolved){await chooseNext();return}
  var v=session.current,d=session.currentDirection,g=norm($("answer").value),fb=$("feedback");
  if(!g){fb.className="feedback almost";fb.textContent="Bitte zuerst antworten.";keepFocus();return}
- var result=evaluateAnswer(v,d,g),expected=d==="DE_FR"?v.foreign:v.meanings.join(" / ");
+ var result=evaluateAnswer(v,d,g),expected=d==="DE_FR"?D.french(v).join(" / "):v.meanings.join(" / ");
  var p=await recordResult(v,d,result.kind);
  if(session!==owner||!owner.active)return;
  session.lastResult={id:v.id,direction:d,kind:result.kind,canOverride:!!result.canOverride};
@@ -675,7 +675,7 @@ async function skipCurrent(){
  var v=session.current,d=session.currentDirection;
  if(!session.seen[v.id]){
   await recordResult(v,d,"wrong");session.attempts++;session.seen[v.id]=true;
-  session.testResults.push({id:v.id,kind:"wrong",direction:d,prompt:d==="DE_FR"?v.meanings.join(" / "):v.foreign,expected:d==="DE_FR"?v.foreign:v.meanings.join(" / ")});
+  session.testResults.push({id:v.id,kind:"wrong",direction:d,prompt:d==="DE_FR"?v.meanings.join(" / "):v.foreign,expected:d==="DE_FR"?D.french(v).join(" / "):v.meanings.join(" / ")});
   updateSessionBadges()
  }
  await chooseNext()
@@ -686,7 +686,7 @@ async function revealCurrentNow(owner){
  if(!session.active||!session.current||session.awaitingChoice)return;
  var v=session.current,d=session.currentDirection;
  $("feedback").className="feedback almost";
- $("feedback").innerHTML="Antwort: <strong>"+escapeHtml(d==="DE_FR"?v.foreign:v.meanings.join(" / "))+"</strong><br><span class='small'>Als nicht gewusst markiert.</span>";
+ $("feedback").innerHTML="Antwort: <strong>"+escapeHtml(d==="DE_FR"?D.french(v).join(" / "):v.meanings.join(" / "))+"</strong><br><span class='small'>Als nicht gewusst markiert.</span>";
  if(!session.seen[v.id]){
   await recordResult(v,d,"wrong");if(session!==owner||!owner.active)return;session.attempts++;session.seen[v.id]=true;session.currentResolved=true;updateSessionBadges()
  }
@@ -706,7 +706,8 @@ function showView(name){
  if(name==="home")runAction(renderHome);
  if(name==="overview")runAction(renderOverview);
  if(name==="vocab")runAction(renderVocab);
- if(name==="plan")runAction(renderExamSummary)
+ if(name==="plan"||name==="learn")runAction(renderExamSummary);
+ if(name==="data")runAction(renderSnapshots)
 }
 
 function populateCourseSelector(){
@@ -732,16 +733,16 @@ async function renderHome(){
  $("homeTotal").textContent=all.length;
  var n=0,d=0,w=0;
  for(var i=0;i<all.length;i++){
-  var p=await gp(all[i].id);if(p.attempts===0)n++;if(isDue(p))d++;if(p.attempts>0&&Math.min(p.deFr,p.frDe)<=1)w++
+  var p=await gp(all[i].id),pct=D.percentage(p);if(pct===null)n++;else if(pct>=67)d++;else if(pct<=32)w++
  }
- var e=cid?await reqP(os(S_EXAMS).get(cid)):null;
+ var e=cid?(await courseExams(cid))[0]:null;
  if(render!==homeRender||cid!==activeCourseId())return;
  $("homeNew").textContent=n;$("homeDue").textContent=d;$("homeWeak").textContent=w;
  if(e&&e.date){
   var days=Math.max(0,Math.ceil((new Date(e.date+"T12:00:00")-new Date())/86400000));
   $("homeExamText").textContent="Klassenarbeit in "+days+" Tag"+(days===1?"":"en")+" · Lernpensum planen"
- }else $("homeExamText").textContent="Stoff und Lernpensum planen";
- $("appStatus").textContent="✓ Version 4.5.1 läuft · "+(cid?courseName(cid)+" · "+all.length+" Vokabeln":"noch keine Vokabeln importiert")
+ }else $("homeExamText").textContent="Klassenarbeit planen";
+ $("appStatus").textContent="✓ Version 4.5.7 läuft · "+(cid?courseName(cid)+" · "+all.length+" Vokabeln":"noch keine Vokabeln importiert")
 }
 async function switchActiveCourse(id){
  viewRevision++;cancelSession();setActiveCourse(id);
@@ -769,7 +770,7 @@ async function renderOverview(){
  else if(mode==="german")rows.sort(function(a,b){return a.v.meanings.join(" / ").localeCompare(b.v.meanings.join(" / "),"de")});
  rows.forEach(function(r){
   var tr=document.createElement("tr"),fr=document.createElement("td"),de=document.createElement("td"),success=document.createElement("td");
-  fr.textContent=r.v.foreign;de.textContent=r.v.meanings.join(" / ");
+  var link=document.createElement("button");link.type="button";link.className="overview-hit";link.textContent=D.french(r.v).join(" / ");link.onclick=function(){editVocab(r.v.id)};fr.appendChild(link);de.onclick=function(){editVocab(r.v.id)};de.textContent=r.v.meanings.join(" / ");
   var wrap=document.createElement("div");wrap.className="success-wrap";
   var bar=document.createElement("div");bar.className="success-bar"+(r.pct===null?" new":"");
   var txt=document.createElement("div");txt.className="success-text"+(r.pct===null?" new":"");
@@ -782,7 +783,7 @@ async function renderOverview(){
 async function renderVocab(){
  var q=norm($("vocabSearch").value),box=$("vocabList");box.innerHTML="";
  if(!q){$("vocabSearchInfo").textContent="Tippe Buchstaben ein. Gesucht wird gleichzeitig in Französisch und Deutsch.";return}
- var matches=vocab.filter(function(v){return v.courseId===activeCourseId()&&norm(v.foreign+" "+v.meanings.join(" ")).includes(q)})
+ var matches=vocab.filter(function(v){return v.courseId===activeCourseId()&&norm(D.french(v).join(" ")+" "+v.meanings.join(" ")).includes(q)})
   .sort(function(a,b){
    var af=norm(a.foreign),bf=norm(b.foreign),am=norm(a.meanings.join(" ")),bm=norm(b.meanings.join(" "));
    var as=(af.startsWith(q)||am.startsWith(q))?0:1,bs=(bf.startsWith(q)||bm.startsWith(q))?0:1;
@@ -814,27 +815,27 @@ function newVocab(){
  if(!activeCourseId()){alert("Bitte zuerst einen Kurs importieren.");return}
  $("editTitle").textContent="Neue Vokabel";$("editId").value="";$("editForeign").value="";$("editMeanings").value="";
  populateUnit($("editUnit"),activeCourseId(),false);populateEditParts();$("deleteVocab").hidden=true;$("editModal").hidden=false;
- setTimeout(function(){$("editForeign").focus()},30)
+ $("editForeign").focus()
 }
 function editVocab(id){
  var v=vocab.find(function(x){return x.id===id});if(!v)return;
- $("editTitle").textContent="Vokabel bearbeiten";$("editId").value=v.id;$("editForeign").value=v.foreign;$("editMeanings").value=v.meanings.join("; ");
+ $("editTitle").textContent="Vokabel bearbeiten";$("editId").value=v.id;$("editForeign").value=D.french(v).join("; ");$("editMeanings").value=v.meanings.join("; ");
  populateUnit($("editUnit"),activeCourseId(),false);var ug=unitGroup(v);$("editUnit").value=ug;populateEditParts();
  if(!isModule(ug)){var pg=partGroup(v);if([].slice.call($("editPart").options).some(function(o){return o.value===pg}))$("editPart").value=pg}
- updateEditLocation();$("deleteVocab").hidden=false;$("editModal").hidden=false;setTimeout(function(){$("editForeign").focus()},30)
+ updateEditLocation();$("deleteVocab").hidden=false;$("editModal").hidden=false;$("editForeign").focus()
 }
 function closeEditModal(){$("editModal").hidden=true}
 async function saveEdit(){
  var id=$("editId").value,foreign=$("editForeign").value.trim(),meanings=$("editMeanings").value.split(";").map(function(x){return x.trim()}).filter(Boolean);
  if(!foreign||!meanings.length){alert("Bitte sowohl Französisch als auch mindestens eine deutsche Bedeutung eintragen.");return}
  var existing=id?vocab.find(function(x){return x.id===id}):null;
- var v=existing||{id:"manual-"+Date.now()+"-"+Math.random().toString(36).slice(2,7),courseId:activeCourseId(),userCreated:true};
- v.foreign=foreign;v.meanings=meanings;v.courseId=activeCourseId();
+ var v=existing?D.clone(existing):{id:"manual-"+Date.now()+"-"+Math.random().toString(36).slice(2,7),courseId:activeCourseId(),userCreated:true};
+ var fr=D.unique(foreign.split(/[;\n]/).map(function(x){return x.trim()}).filter(Boolean));v.foreign=fr[0];if(fr.length>1||v.foreignVariants)v.foreignVariants=fr;v.meanings=D.unique(meanings);v.courseId=activeCourseId();
  var selectedUnit=$("editUnit").value;
  v.unitId=selectedUnit;
  v.part=isModule(selectedUnit)?"alle":(selectedUnit==="unite-0"?"auftakt":$("editPart").value||"sonstiges");
  v.userEdited=true;v.userEditedAt=new Date().toISOString();
- await reqP(os(S_VOCAB,"readwrite").put(v));await reload();populateAllSelectors();closeEditModal();await renderVocab()
+ await reqP(os(S_VOCAB,"readwrite").put(v));await reload();populateAllSelectors();closeEditModal();await renderVocab();await renderOverview()
 }
 async function deleteVocab(){
  var id=$("editId").value;if(!id)return;
@@ -885,21 +886,25 @@ async function saveExam(){
  var date=$("examDate").value,scopes=selectedExamScopes();
  if(!date)return alert("Bitte Datum wählen.");
  if(!scopes.length)return alert("Bitte mindestens einen Stoffbereich markieren.");
- await reqP(os(S_EXAMS,"readwrite").put({id:activeCourseId(),courseId:activeCourseId(),date:date,scopes:scopes}));
- await renderExamSummary()
+ var chosen=$("planExamSelect").value||"exam-"+crypto.randomUUID();await reqP(os(S_EXAMS,"readwrite").put({id:chosen,courseId:activeCourseId(),date:date,scopes:scopes}));
+ await renderExamSummary();$("planExamSelect").value=chosen;await renderExamSummary()
 }
 async function deleteExam(){
  if(!activeCourseId()){await renderExamSummary();return}
- await reqP(os(S_EXAMS,"readwrite").delete(activeCourseId()));await renderExamSummary()
+ var id=$("planExamSelect").value;if(id)await reqP(os(S_EXAMS,"readwrite").delete(id));await renderExamSummary()
 }
 async function renderExamSummary(){
- var render=++examRender;
- var cid=activeCourseId(),e=cid?await reqP(os(S_EXAMS).get(cid)):null,box=$("examSummary");
- if(render!==examRender||cid!==activeCourseId())return;
+ var render=++examRender,formRevision=examFormRevision;
+ var cid=activeCourseId(),all=cid?await courseExams(cid):[],old=$("planExamSelect").value;
+ if(render!==examRender||cid!==activeCourseId()||formRevision!==examFormRevision)return;
+ var e=all.find(function(x){return x.id===old})||all[0]||null,box=$("examSummary");
+ ["planExamSelect","learnExamSelect"].forEach(function(id){var sel=$(id),chosen=sel.value;sel.replaceChildren();all.forEach(function(ex){var o=document.createElement("option");o.value=ex.id;o.textContent=ex.date+" · "+poolForScopes(oldExamScopes(ex)).length+" Vokabeln";sel.appendChild(o)});if(all.some(function(x){return x.id===chosen}))sel.value=chosen;});
+ $("learnExamInfo").textContent=all.length?"Nur Vokabeln der gewählten Klassenarbeit werden gelernt.":"Noch keine Klassenarbeit. Bitte zuerst eine Klassenarbeit planen.";
+ if(render!==examRender||cid!==activeCourseId()||formRevision!==examFormRevision)return;
  if(!e){$("examDate").value="";populateExamScopes([]);box.textContent=cid?"Für "+courseName(cid)+" ist noch keine Klassenarbeit gespeichert.":"Bitte zuerst einen Kurs importieren oder auswählen.";return}
  $("examDate").value=e.date;var scopes=oldExamScopes(e);populateExamScopes(scopes);
  var pool=poolForScopes(scopes),st=await computeExamStats(pool,e.date);
- if(render!==examRender||cid!==activeCourseId())return;
+ if(render!==examRender||cid!==activeCourseId()||formRevision!==examFormRevision)return;
  var title=document.createElement("strong"),target=document.createElement("strong");
  title.textContent=courseName(cid)+" · "+scopes.length+" Stoffbereich"+(scopes.length===1?"":"e");
  target.textContent="Richtwert heute: "+st.dailyTarget+" verschiedene Vokabeln";
@@ -911,12 +916,12 @@ async function renderExamSummary(){
 async function startExamLearning(){return beginLearning(prepareExamLearning)}
 async function prepareExamLearning(ticket){
  if(!activeCourseId())return alert("Bitte zuerst einen Kurs importieren oder auswählen.");
- var e=await reqP(os(S_EXAMS).get(activeCourseId()));if(!startIsCurrent(ticket))return;
+ var all=await courseExams(activeCourseId()),selected=(!$("learnView").hidden?$("learnExamSelect"):$("planExamSelect")).value,e=all.find(function(x){return x.id===selected})||all[0];if(!startIsCurrent(ticket))return;
  if(!e){$("examSummary").textContent="Bitte zuerst eine Klassenarbeit speichern.";return}
  var pool=poolForScopes(oldExamScopes(e)),st=await computeExamStats(pool,e.date);if(!pool.length)return alert("Im gespeicherten Stoff wurden keine Vokabeln gefunden.");
- pool=await priorityPool(pool);pool=pool.slice(0,Math.min(pool.length,Math.max(1,st.dailyTarget)));
+ pool=await orderPool(pool,$("orderSelect").value,$("directionSelect").value);pool=pool.slice(0,Math.min(pool.length,Math.max(1,parseInt($("distinctCount").value,10)||10)));
  if(!startIsCurrent(ticket))return;
- await startCustomSession(pool,"Klassenarbeit · heutiges Pensum")
+ await startCustomSession(pool,"Klassenarbeit · "+e.date)
 }
 
 function downloadJson(obj,name){
@@ -925,7 +930,7 @@ function downloadJson(obj,name){
 }
 async function exportBackup(filename){
  var entries=await reqP(os(S_VOCAB).getAll()),progress=await reqP(os(S_PROGRESS).getAll()),exams=await reqP(os(S_EXAMS).getAll()),cs=await reqP(os(S_COURSES).getAll());
- downloadJson({backupType:"full-backup",appVersion:APP_VERSION,schemaVersion:6,exportedAt:new Date().toISOString(),courses:cs,entries:entries,progress:progress,exams:exams,settings:collectSettings()},filename||"vokabeltrainer-backup.json")
+ downloadJson({backupType:"full-backup",appVersion:APP_VERSION,schemaVersion:7,history:await reqP(os(S_HISTORY).getAll()),profileName:localStorage.getItem("vokabeltrainer.profile")||"",exportedAt:new Date().toISOString(),courses:cs,entries:entries,progress:progress,exams:exams,settings:collectSettings()},filename||"vokabeltrainer-backup.json")
 }
 async function exportCurrentCourse(){
  var cid=activeCourseId();if(!cid)return alert("Kein Kurs ausgewählt.");
@@ -946,175 +951,6 @@ function isFullBackup(data){
   (Array.isArray(data.courses)&&Array.isArray(data.entries)&&Array.isArray(data.progress)&&Array.isArray(data.exams))
  ))
 }
-async function importVocabularyFile(file){
- var data=await parseJsonFile(file);
- if(isFullBackup(data))throw new Error("Das ist ein komplettes Backup. Bitte unten „Backup wiederherstellen“ verwenden.");
-
- var entries=Array.isArray(data)?data:data&&data.entries;
- if(!Array.isArray(entries))throw new Error("Keine Vokabelliste gefunden.");
- if(!entries.length)throw new Error("Die Vokabeldatei enthält 0 Einträge.");
-
- // Kursangabe möglichst sicher aus neuen UND älteren Vokabeldateien bestimmen.
- var rawCourseId=null,courseLabel=null;
- if(data&&!Array.isArray(data)&&data.course){
-  rawCourseId=data.course.id||data.course.courseId||null;
-  courseLabel=data.course.label||data.course.name||null
- }
- if(!rawCourseId&&data&&!Array.isArray(data)&&data.courseId)rawCourseId=data.courseId;
- if(!courseLabel&&data&&!Array.isArray(data)&&data.label)courseLabel=data.label;
-
- var entryCourseIds=Array.from(new Set(entries.map(function(e){return e&&e.courseId}).filter(Boolean).map(String)));
- if(!rawCourseId&&entryCourseIds.length===1)rawCourseId=entryCourseIds[0];
-
- // Alte Französisch-6-Dateien hatten teilweise fälschlich "franzoesisch" als Kurs-ID.
- // Wenn der sichtbare Name eindeutig Jahrgang 6 sagt, wird das automatisch repariert.
- var labelText=String(courseLabel||"").trim();
- var rawId=String(rawCourseId||"").trim();
- if((rawId==="franzoesisch"||!rawId) && /franz[oö]sisch\s*6/i.test(labelText)){
-  rawId="franzoesisch-6"
- }
- // Auch anhand typischer fr6-IDs / Seiten 176–178 eindeutig erkennen.
- if(!rawId){
-  var looksFr6=entries.every(function(e){
-   return e && ((String(e.id||"").startsWith("fr6-")) || (Number(e.page)>=176&&Number(e.page)<=178))
-  });
-  if(looksFr6){rawId="franzoesisch-6";if(!labelText)labelText="Französisch 6"}
- }
-
- if(!rawId)throw new Error("Der Kurs konnte nicht eindeutig erkannt werden. Bitte eine Datei mit Kursangabe verwenden.");
- if(!labelText){
-  if(rawId==="franzoesisch-6")labelText="Französisch 6";
-  else{
-   var existingMeta=courses.find(function(c){return c.id===rawId});
-   labelText=existingMeta?(existingMeta.label||existingMeta.name||rawId):rawId
-  }
- }
-
- var importedCourse=rawId,courseLabel=labelText;
-
- // Wenn derselbe Kurs bereits existiert, nicht wegen einer alten Bezeichnung abbrechen.
- // Die ID ist maßgeblich; die aktuelle sichtbare Bezeichnung wird beibehalten.
- var existingCourse=courses.find(function(c){return c.id===importedCourse});
- if(existingCourse){
-  courseLabel=String(existingCourse.label||existingCourse.name||courseLabel)
- }
-
- if(!confirm(entries.length+" Vokabeln → "+courseLabel+" importieren?"))return;
-
- var unitNames=new Map();
- if(data&&!Array.isArray(data)&&Array.isArray(data.units)){
-  data.units.forEach(function(u){if(u&&u.id)unitNames.set(String(u.id),u.name||u.label||String(u.id))})
- }
-
- var existing=new Map(vocab.map(function(v){return[v.id,v]})),identities=new Map();
- vocab.filter(function(v){return v.courseId===importedCourse}).forEach(function(v){
-  identities.set(v.importIdentity||importIdentity(v,canonicalLocation(v),v.meanings),v)
- });
- var added=0,updated=0,skipped=0,invalid=0,generatedIds=0;
-
- function canonicalLocation(e){
-  var original=String(e.unitId||""),unit=original,part=e.part||null;
-  var section=e.sectionName||e.unitName||unitNames.get(original)||null;
-
-  if(importedCourse==="franzoesisch-6" &&
-     (/^p17[678]-/.test(original)||(Number(e.page)>=176&&Number(e.page)<=178))){
-   return{unitId:"unite-0",part:"auftakt",sectionName:section||original}
-  }
-
-  var old=original.match(/^(unite-\d+)-(auftakt|vocabulaire-thematique|volet-1|volet-2|volet-3)$/);
-  if(old){unit=old[1];part=part||old[2]}
-
-  if(isModule(unit))part="alle";
-  if(/^unite-\d+$/.test(unit)&&!part)part="sonstiges";
-  return{unitId:unit,part:part||"sonstiges",sectionName:section}
- }
-
- function importIdentity(e,loc,meanings){
-  // Ungekürztes Tupel statt kollisionsanfälligem Slug; die ursprüngliche
-  // Identität bleibt bei manueller Bearbeitung am Datensatz erhalten.
-  function canonical(s){return norm(s).normalize("NFC")}
-  return JSON.stringify([importedCourse,loc.unitId,loc.part,canonical(e.foreign),
-   Array.from(new Set(meanings.map(canonical))).sort()])
- }
-
- for(var i=0;i<entries.length;i++){
-  var e=entries[i];
-  if(!e||!String(e.foreign||"").trim()||!e.unitId){invalid++;continue}
-
-  var meanings=Array.isArray(e.meanings)?e.meanings:(e.meaning?[e.meaning]:[]);
-  meanings=meanings.map(function(x){return String(x).trim()}).filter(Boolean);
-  if(!meanings.length){invalid++;continue}
-
-  var loc=canonicalLocation(e);
-  if(!/^unite-\d+$/.test(loc.unitId)&&!isModule(loc.unitId)){invalid++;continue}
-
-  var identity=e.id?JSON.stringify([importedCourse,"source",String(e.id)]):importIdentity(e,loc,meanings);
-  var match=identities.get(identity);
-  var sourceId=e.id?String(e.id):null;
-  if(!match&&sourceId&&existing.has(sourceId)&&existing.get(sourceId).courseId===importedCourse)match=existing.get(sourceId);
-  var id=match?match.id:(sourceId&&!existing.has(sourceId)?sourceId:"import:"+identity);
-  // Auch fremde explizite IDs dürfen niemals einen anderen Kurs überschreiben.
-  if(!match&&existing.has(id)){var base=id,n=2;while(existing.has(id))id=base+":"+n++}
-  if(!e.id)generatedIds++;
-
-  if(existing.has(id)){
-   var oldv=existing.get(id),dirty=false;
-
-   if(!oldv.importIdentity){oldv.importIdentity=identity;dirty=true}
-   if(!oldv.userEdited){
-    if(oldv.unitId!==loc.unitId){oldv.unitId=loc.unitId;dirty=true}
-    if(oldv.part!==loc.part){oldv.part=loc.part;dirty=true}
-    if(!oldv.sectionName&&loc.sectionName){oldv.sectionName=loc.sectionName;dirty=true}
-   }
-
-   if(dirty){
-    await reqP(os(S_VOCAB,"readwrite").put(oldv));existing.set(id,oldv);updated++
-   }else skipped++;
-   identities.set(identity,oldv);
-   continue
-  }
-
-  var v=Object.assign({},e,{
-   id:id,
-   importIdentity:identity,
-   courseId:importedCourse,
-   unitId:loc.unitId,
-   part:loc.part,
-   sectionName:loc.sectionName,
-   foreign:String(e.foreign).trim(),
-   meanings:meanings,
-   importedAt:new Date().toISOString()
-  });
-  delete v.unitName;
-  await reqP(os(S_VOCAB,"readwrite").put(v));
-  existing.set(id,v);identities.set(identity,v);added++
- }
-
- // Kursmetadaten erst nach erfolgreichem Einlesen schreiben.
- var courseData=(data&&!Array.isArray(data)&&data.course)?Object.assign({},data.course):{};
- courseData.id=importedCourse;
- courseData.name=courseData.name||courseLabel;
- courseData.label=courseLabel;
- if(!courseData.learningLocale)courseData.learningLocale="fr-FR";
- if(!courseData.nativeLocale)courseData.nativeLocale="de-DE";
- await reqP(os(S_COURSES,"readwrite").put(courseData));
-
- // Datenbestand neu laden. Fehler in einer Anzeige darf nicht mehr als "Importfehler"
- // erscheinen, wenn die Vokabeln bereits erfolgreich gespeichert wurden.
- await reload();
- setActiveCourse(importedCourse);
- try{
-  populateCourseSelector();populateAllSelectors();updateCourseLabels();saveSettings();
-  await renderHome();await renderOverview()
- }catch(uiErr){
-  console.error("Import erfolgreich, UI-Aktualisierung fehlgeschlagen:",uiErr)
- }
-
- $("vocabImportResult").textContent=
-  "Import abgeschlossen: "+added+" neu · "+updated+" repariert/aktualisiert · "+
-  skipped+" bereits vorhanden · "+invalid+" ungültig → "+courseLabel+
-  (generatedIds?" · "+generatedIds+" IDs automatisch erzeugt":"")+".";
-}
 function validateBackup(data){
  function fail(){throw new Error("Das Backup ist unvollständig oder enthält ungültige Daten. Es wurde nichts verändert.")}
  function object(x){return x!==null&&typeof x==="object"&&!Array.isArray(x)}
@@ -1126,7 +962,7 @@ function validateBackup(data){
   return ids
  }
  if(!object(data)||!isFullBackup(data))fail();
- if(data.schemaVersion!=null&&(!Number.isInteger(data.schemaVersion)||data.schemaVersion<1||data.schemaVersion>6))fail();
+ if(data.schemaVersion!=null&&(!Number.isInteger(data.schemaVersion)||data.schemaVersion<1||data.schemaVersion>7))fail();
  var courseIds=records("courses"),vocabIds=records("entries");records("progress");records("exams");
  data.courses.forEach(function(c){
   ["name","label","learningLocale","nativeLocale"].forEach(function(k){if(c[k]!=null&&!text(c[k]))fail()})
@@ -1134,7 +970,7 @@ function validateBackup(data){
  data.entries.forEach(function(v){
   if(!courseIds.has(v.courseId)||!text(v.foreign)||!text(v.unitId)||!Array.isArray(v.meanings)||!v.meanings.length||!v.meanings.every(text))fail();
   ["part","sectionName","unitName","importIdentity"].forEach(function(k){if(v[k]!=null&&!text(v[k]))fail()});
-  if(v.userEdited!=null&&typeof v.userEdited!=="boolean")fail()
+  if(v.userEdited!=null&&typeof v.userEdited!=="boolean")fail();if(v.foreignVariants!=null&&(!Array.isArray(v.foreignVariants)||!v.foreignVariants.length||!v.foreignVariants.every(text)))fail()
  });
  data.progress.forEach(function(p){
   if(!vocabIds.has(p.id))fail();
@@ -1145,10 +981,12 @@ function validateBackup(data){
   })
  });
  data.exams.forEach(function(e){
-  if(!courseIds.has(e.id)||(e.courseId!=null&&e.courseId!==e.id)||typeof e.date!=="string"||!/^\d{4}-\d{2}-\d{2}$/.test(e.date)||!Number.isFinite(Date.parse(e.date)))fail();
+  if(!courseIds.has(e.courseId||e.id)||typeof e.date!=="string"||!/^\d{4}-\d{2}-\d{2}$/.test(e.date)||!Number.isFinite(Date.parse(e.date)))fail();
   if(e.scopes!=null){if(!Array.isArray(e.scopes)||!e.scopes.length||!e.scopes.every(function(s){return typeof s==="string"&&/^[^|]+\|[^|]+$/.test(s)}))fail()}
   else if(!text(e.unit)||(e.part!=null&&!text(e.part)))fail()
  });
+ if(data.history!=null){records("history");data.history.forEach(function(h){if(!courseIds.has(h.courseId)||(h.durationMs!=null&&(!Number.isFinite(h.durationMs)||h.durationMs<0)))fail()})}
+ if(data.profileName!=null&&typeof data.profileName!=="string")fail();
  if(!object(data.settings))fail();
  var s=data.settings;
  if(s.activeCourse!=null&&!courseIds.has(s.activeCourse))fail();
@@ -1158,24 +996,27 @@ function validateBackup(data){
  return data
 }
 async function restoreBackupFile(file){
- var data=validateBackup(await parseJsonFile(file));
+ var incoming=await parseJsonFile(file),data=await prepareRestore(incoming);
  if(!confirm("Backup wirklich wiederherstellen? Der aktuelle lokale Datenbestand wird vollständig ersetzt."))return;
- var previousSettings=localStorage.getItem(SETTINGS_KEY),previousCourse=localStorage.getItem(ACTIVE_COURSE_KEY);
+ await storeLocalSnapshot("before-restore");
+ var previousSettings=localStorage.getItem(SETTINGS_KEY),previousCourse=localStorage.getItem(ACTIVE_COURSE_KEY),previousProfile=localStorage.getItem("vokabeltrainer.profile");
  // Alle Stores gemeinsam ersetzen: Auch ein Fehler nach clear() rollt alles zurück.
  await new Promise(function(resolve,reject){
-  var tx=db.transaction([S_VOCAB,S_PROGRESS,S_COURSES,S_EXAMS],"readwrite"),failure=null;
+  var tx=db.transaction([S_VOCAB,S_PROGRESS,S_COURSES,S_EXAMS,S_HISTORY],"readwrite"),failure=null;
   tx.oncomplete=resolve;
   tx.onabort=function(){
    try{
+    if(previousProfile===null)localStorage.removeItem("vokabeltrainer.profile");else localStorage.setItem("vokabeltrainer.profile",previousProfile);
     if(previousSettings===null)localStorage.removeItem(SETTINGS_KEY);else localStorage.setItem(SETTINGS_KEY,previousSettings);
     if(previousCourse===null)localStorage.removeItem(ACTIVE_COURSE_KEY);else localStorage.setItem(ACTIVE_COURSE_KEY,previousCourse)
    }catch(e){failure=failure||e}
    reject(failure||tx.error||new Error("Backup-Import abgebrochen. Der bisherige Datenbestand bleibt erhalten."))
   };
   try{
-   [[S_VOCAB,data.entries],[S_PROGRESS,data.progress],[S_COURSES,data.courses],[S_EXAMS,data.exams]].forEach(function(pair){
+   [[S_VOCAB,data.entries],[S_PROGRESS,data.progress],[S_COURSES,data.courses],[S_EXAMS,data.exams],[S_HISTORY,data.history||[]]].forEach(function(pair){
     var store=tx.objectStore(pair[0]);store.clear();pair[1].forEach(function(record){store.put(record)})
    });
+   if(data.profileName!=null)localStorage.setItem("vokabeltrainer.profile",data.profileName);
    localStorage.setItem(SETTINGS_KEY,JSON.stringify(data.settings));
    if(data.settings.activeCourse)localStorage.setItem(ACTIVE_COURSE_KEY,data.settings.activeCourse);else localStorage.removeItem(ACTIVE_COURSE_KEY)
   }catch(e){failure=e;tx.abort()}
@@ -1187,10 +1028,167 @@ async function restoreBackupFile(file){
 }
 async function resetAll(){
  if(!confirm("Alle lokalen Vokabeln, Lernstände, Kurse und Klassenarbeiten wirklich löschen?"))return;
- for(var s of [S_VOCAB,S_PROGRESS,S_COURSES,S_EXAMS])await reqP(os(s,"readwrite").clear());
+ if(!confirm("Wirklich alle Daten zurücksetzen? Eine Sicherung vor Zurücksetzen bleibt erhalten."))return;
+ cancelSession();await answerWork;await storeLocalSnapshot("before-reset",true);
+ await writeRecords([[S_VOCAB,[]],[S_PROGRESS,[]],[S_COURSES,[]],[S_EXAMS,[]],[S_HISTORY,[]]],true);
+ localStorage.removeItem("vokabeltrainer.profile");
  try{localStorage.removeItem(SETTINGS_KEY);localStorage.removeItem(ACTIVE_COURSE_KEY)}catch(e){}
  ACTIVE_COURSE_ID=null;await reload();populateCourseSelector();populateAllSelectors();populateExamScopes([]);
  session.active=false;showView("home");await renderHome()
+}
+
+
+async function writeRecords(pairs,clear){
+ return new Promise(function(resolve,reject){
+  var tx=db.transaction(pairs.map(function(p){return p[0]}),"readwrite");
+  tx.oncomplete=resolve;tx.onabort=function(){reject(new Error("Speichern fehlgeschlagen. Der bisherige Zustand bleibt erhalten."))};
+  try{pairs.forEach(function(pair){var s=tx.objectStore(pair[0]);if(clear)s.clear();pair[1].forEach(function(v){s.put(v)})})}catch(e){tx.abort()}
+ });
+}
+async function readState(){
+ await answerWork;await historyWork;
+ var names=[S_VOCAB,S_PROGRESS,S_COURSES,S_EXAMS,S_HISTORY],tx=db.transaction(names),out={};
+ await Promise.all(names.map(async function(name){out[name]=await reqP(tx.objectStore(name).getAll())}));
+ return {backupType:"full-backup",schemaVersion:7,appVersion:APP_VERSION,exportedAt:new Date().toISOString(),entries:out.vocab,progress:out.progress,courses:out.courses,exams:out.exams,history:out.history,settings:collectSettings(),profileName:localStorage.getItem("vokabeltrainer.profile")||""};
+}
+async function storeLocalSnapshot(reason,emergency){
+ var state=await readState(),cid=activeCourseId()||"all",record={id:crypto.randomUUID(),courseId:cid,reason:reason,emergency:!!emergency,createdAt:new Date().toISOString(),label:emergency?"Sicherung vor Zurücksetzen":courseName(cid)+"_AutoBackup_"+new Date().toISOString(),data:state};
+ await writeRecords([[S_SNAPSHOTS,[record]]]);
+ // Only prune after the new snapshot is durably committed. Emergency records are separate.
+ var all=await reqP(os(S_SNAPSHOTS).getAll()),sorted=all.filter(function(x){return x.courseId===cid&&!x.emergency}).sort(function(a,b){return b.createdAt.localeCompare(a.createdAt)||b.id.localeCompare(a.id)}),remove=sorted.slice(10);
+ if(emergency)remove=remove.concat(all.filter(function(x){return x.emergency&&x.id!==record.id}));
+ if(remove.length)await new Promise(function(resolve,reject){var tx=db.transaction(S_SNAPSHOTS,"readwrite");remove.forEach(function(x){tx.objectStore(S_SNAPSHOTS).delete(x.id)});tx.oncomplete=resolve;tx.onabort=function(){reject(tx.error)}});
+ return record;
+}
+async function renderSnapshots(){
+ $("profileName").value=localStorage.getItem("vokabeltrainer.profile")||"";
+ var records=await reqP(os(S_SNAPSHOTS).getAll());records.sort(function(a,b){return b.createdAt.localeCompare(a.createdAt)});
+ var box=$("snapshotList");box.replaceChildren();
+ records.forEach(function(r){var row=document.createElement("div"),b=document.createElement("button"),exportBtn=document.createElement("button"),text=document.createElement("span");text.textContent=r.label+" · "+r.reason+" · "+r.data.entries.length+" Vokabeln ";b.textContent="Wiederherstellen";exportBtn.textContent="Als Datei sichern";
+ b.onclick=function(){dataAction(async function(){await restoreBackupFile(new File([JSON.stringify(r.data)],"snapshot.json",{type:"application/json"}));await renderSnapshots()})};
+ exportBtn.onclick=function(){downloadJson(r.data,D.filename(r.label,""))};row.append(text,b,exportBtn);box.appendChild(row)});
+ if(!records.length)box.textContent="Noch keine automatischen Sicherungen vorhanden.";
+}
+function accumulateTime(owner){var now=performance.now();if(owner.visibleTick!=null)owner.durationMs+=(now-owner.visibleTick);owner.visibleTick=document.hidden?null:now;}
+function finishHistory(owner,completed){
+ if(!owner.historyId||owner.historySaved)return;owner.historySaved=true;accumulateTime(owner);
+ var record={id:owner.historyId,courseId:owner.courseId,startedAt:owner.startedAt,endedAt:new Date().toISOString(),durationMs:Math.round(owner.durationMs),mode:owner.sourceLabel,answered:Object.keys(owner.seen).length,completed:completed,vocabularyIds:Object.keys(owner.seen)};
+ historyWork=historyWork.then(function(){return writeRecords([[S_HISTORY,[record]]])}).catch(function(){ $("appStatus").textContent="Die Lernhistorie konnte nicht gespeichert werden. Bitte eine Sicherung exportieren."; });
+}
+document.addEventListener("visibilitychange",function(){if(session.active)accumulateTime(session)});
+window.addEventListener("pagehide",function(){if(session.active)finishHistory(session,false)});
+async function courseExams(cid){var all=await reqP(os(S_EXAMS).getAll());return all.filter(function(e){return(e.courseId||e.id)===cid}).sort(function(a,b){return a.date.localeCompare(b.date)})}
+async function manualCourseBackup(){
+ var name=localStorage.getItem("vokabeltrainer.profile");
+ if(!name){name=prompt("Vorname für die Kurssicherung (kein Nachname erforderlich):");if(name===null)return;name=name.trim();if(!name)return;localStorage.setItem("vokabeltrainer.profile",name)}
+ var backup=D.buildCourseBackup(await readState(),activeCourseId(),APP_VERSION,name);
+ downloadJson(backup,D.filename(courseName(activeCourseId()),name));
+}
+async function prepareRestore(input){
+ var data=D.clone(input);
+ if(data.backupType==="course-backup"){
+  if(data.schemaVersion!==1||!data.course||!Array.isArray(data.entries)||!Array.isArray(data.progress)||!Array.isArray(data.exams)||!Array.isArray(data.history))throw Error("Die Kurssicherung ist unvollständig oder ihre Version wird nicht unterstützt.");
+  var cid=data.course.id,part={backupType:"full-backup",schemaVersion:7,courses:[data.course],entries:data.entries,progress:data.progress,exams:data.exams,history:data.history,settings:{activeCourse:cid}};
+  validateBackup(part);
+  var state=await readState(),ids=new Set(state.entries.filter(function(v){return v.courseId===cid}).map(function(v){return v.id}));
+  var foreign=new Set(state.entries.filter(function(v){return v.courseId!==cid}).map(function(v){return v.id}));
+  if(data.entries.some(function(v){return foreign.has(v.id)}))throw Error("Vokabel-IDs kollidieren mit einem anderen Kurs. Bitte als neuen Kurs einlesen.");
+  state.entries=state.entries.filter(function(v){return v.courseId!==cid}).concat(data.entries);
+  state.progress=state.progress.filter(function(v){return !ids.has(v.id)}).concat(data.progress);
+  state.courses=state.courses.filter(function(c){return c.id!==cid}).concat(data.course);
+  state.exams=state.exams.filter(function(e){return(e.courseId||e.id)!==cid}).concat(data.exams);
+  state.history=state.history.filter(function(h){return h.courseId!==cid}).concat(data.history);state.settings.activeCourse=cid;state.profileName=data.profileName||state.profileName;data=state;
+ }
+ // Only known legacy fr/de records are adapted, all other metadata remains intact.
+ if(Array.isArray(data.entries))data.entries=data.entries.map(function(v){return !v.foreign&&v.fr?D.normalize(v):v});
+ return validateBackup(data);
+}
+var dataBusy=false,pendingImport=null;
+async function dataAction(action){
+ if(dataBusy||editBusy)return;dataBusy=true;
+ var controls=Array.from(document.querySelectorAll('button,input,select,textarea')).map(function(el){var was=el.disabled;el.disabled=true;return[el,was]});
+ $("dataView").setAttribute("aria-busy","true");
+ try{await action()}catch(e){$("backupResult").textContent="Die Aktion wurde nicht abgeschlossen. "+(e.message||"Bitte erneut versuchen.")}
+ finally{dataBusy=false;controls.forEach(function(pair){if(pair[0].isConnected)pair[0].disabled=pair[1]});$("dataView").removeAttribute("aria-busy")}
+}
+function normalizeImportData(data,mode){
+ if(isFullBackup(data))throw Error("Das ist ein komplettes Backup. Bitte unten „Backup wiederherstellen“ verwenden.");
+ if(data.backupType==="course-backup"&&data.schemaVersion!==1)throw Error("Unbekannte Sicherungsversion.");
+ var entries=Array.isArray(data)?data:data.entries;if(!Array.isArray(entries)||!entries.length)throw Error("Keine Vokabelliste gefunden.");
+ var meta=data.course||{},raw=meta.id||meta.courseId||data.courseId||null,label=meta.label||meta.name||data.label||"";
+ if(!raw){var ids=Array.from(new Set(entries.map(function(v){return v.courseId}).filter(Boolean)));if(ids.length===1)raw=ids[0];}
+ if((raw==="franzoesisch"||!raw)&&/franz[oö]sisch\s*6/i.test(label))raw="franzoesisch-6";
+ if(!raw&&entries.every(function(e){return String(e.id||"").startsWith("fr6-")||(Number(e.page)>=176&&Number(e.page)<=178)})){raw="franzoesisch-6";label=label||"Französisch 6";}
+ if(mode==="current"&&activeCourseId())raw=activeCourseId();
+ if(!raw)throw Error("Der Kurs konnte nicht eindeutig erkannt werden. Bitte eine Datei mit Kursangabe verwenden.");
+ var cid=String(raw),existing=courses.find(function(c){return c.id===cid});label=existing?(existing.label||existing.name||cid):label||cid;
+ var unitNames=new Map((data.units||[]).map(function(u){return[u.id,u.name||u.label||u.id]})),invalid=0,seen=new Set(vocab.map(function(v){return v.id}));
+ var identityIndex=new Map(vocab.filter(function(v){return v.courseId===cid}).map(function(v){return[v.importIdentity,v]}));
+ var normalized=[];
+ entries.forEach(function(e){try{
+  var v=D.normalize(e),original=String(e.unitId||e.unit||""),unit=original,part=e.part||null,section=e.sectionName||e.unitName||unitNames.get(original)||null;
+  if(cid==="franzoesisch-6"&&(/^p17[678]-/.test(original)||(Number(e.page)>=176&&Number(e.page)<=178))){unit="unite-0";part="auftakt";section=section||original;}
+  var old=unit.match(/^(unite-\d+)-(auftakt|vocabulaire-thematique|volet-1|volet-2|volet-3)$/);if(old){unit=old[1];part=part||old[2];}
+  if(!/^unite-\d+$/.test(unit)&&!isModule(unit))throw Error();
+  if(isModule(unit))part="alle";if(unit==="unite-0")part="auftakt";
+  part=part||"sonstiges";
+  var identity=e.importIdentity||(e.id?JSON.stringify([cid,"source",String(e.id)]):JSON.stringify([cid,unit,part,norm(v.foreign).normalize("NFC"),Array.from(new Set(v.meanings.map(function(x){return norm(x).normalize("NFC")}))).sort()]));
+  var match=identityIndex.get(identity);
+  var id=match?match.id:(e.id&&!seen.has(String(e.id))?String(e.id):"import:"+identity);
+  if(!match&&seen.has(id)){id="import-"+crypto.randomUUID();}seen.add(id);
+  normalized.push(Object.assign(v,{id:id,importIdentity:identity,courseId:cid,unitId:unit,part:part,sectionName:section,importedAt:e.importedAt||new Date().toISOString()}));
+ }catch(err){invalid++;}});
+ if(invalid)throw Error(invalid+" ungültige Einträge. Bitte die Datei korrigieren; es wurde nichts übernommen.");
+ return {course:Object.assign({},meta,{id:cid,name:meta.name||label,label:label,learningLocale:meta.learningLocale||"fr-FR",nativeLocale:meta.nativeLocale||"de-DE"}),entries:normalized,source:data,mode:mode};
+}
+async function importVocabularyFile(file,mode){
+ var data=await parseJsonFile(file),prepared=normalizeImportData(data,mode||"source");
+ pendingImport=prepared;pendingImport.filename=file.name;pendingImport.activeAtStart=activeCourseId();
+ $("importStrategy").value="smart";$("courseCollision").hidden=mode!=="new"||!courses.some(function(c){return c.id===prepared.course.id});$("courseCollisionChoice").value="copy";
+ $("importPreview").hidden=false;await renderImportPreview();
+}
+async function renderImportPreview(){
+ if(!pendingImport)return;
+ var cid=pendingImport.course.id,old=vocab.filter(function(v){return v.courseId===cid}),progress=await reqP(os(S_PROGRESS).getAll());
+ var plan=D.planImport(old,pendingImport.entries,progress,$("importStrategy").value);
+ pendingImport.groups=plan.groups;
+ var c=plan.counts;$("importSummary").textContent=pendingImport.filename+": "+pendingImport.entries.length+" Einträge · "+c.new+" neu · "+c.identical+" identisch · "+c.expanded+" Bedeutungen ergänzt · "+($('importStrategy').value==='review'?c.review:0)+" zur manuellen Prüfung";
+ var box=$("importConflicts");box.replaceChildren();
+ if($("importStrategy").value==="review")plan.groups.forEach(function(g,i){if(!g.existing.length)return;
+  var field=document.createElement("fieldset"),legend=document.createElement("legend");legend.textContent="Konflikt "+(i+1);field.appendChild(legend);field.dataset.group=i;
+  var info=document.createElement("p");info.textContent="Vorhanden: "+g.existing.map(function(v){return D.french(v).join(" / ")+" = "+D.german(v).join(" / ")}).join("; ")+" · Datei: "+g.incoming.map(function(v){return D.french(v).join(" / ")+" = "+D.german(v).join(" / ")}).join("; ");field.appendChild(info);
+  var select=document.createElement("select");select.className="review-mode";select.setAttribute("aria-label","Entscheidung Konflikt "+(i+1));[["merge","Varianten zusammenführen"],["separate","Als getrennte Vokabeln behalten"],["skip","Konflikt überspringen"]].forEach(function(pair){var o=document.createElement("option");o.value=pair[0];o.textContent=pair[1];select.appendChild(o)});field.appendChild(select);
+  ["fr","de"].forEach(function(lang){var label=document.createElement("label");label.textContent=lang==='fr'?"Französische Varianten (eine pro Zeile)":"Deutsche Varianten (eine pro Zeile)";var area=document.createElement("textarea");area.className="review-"+lang;var values=D.unique(g.existing.concat(g.incoming).flatMap(lang==='fr'?D.french:D.german));area.value=values.join("\n");label.appendChild(area);field.appendChild(label);
+   values.forEach(function(value){var l=document.createElement("label"),cb=document.createElement("input");cb.type="checkbox";cb.checked=true;cb.onchange=function(){var lines=area.value.split("\n");area.value=(cb.checked?D.unique(lines.concat(value)):lines.filter(function(x){return x!==value})).join("\n")};l.append(cb,document.createTextNode(value));field.appendChild(l)});
+  });box.appendChild(field);
+ });
+}
+async function commitImport(){
+ if(!pendingImport)return;var prepared=pendingImport,cid=prepared.course.id,copy=prepared.mode==='new'&&(!$("courseCollision").hidden&&$("courseCollisionChoice").value==='copy'),replace=prepared.mode==='new'&&!$("courseCollision").hidden&&$("courseCollisionChoice").value==='replace';
+ if(prepared.mode==='current'&&activeCourseId()!==prepared.activeAtStart)throw Error("Der Kurs wurde gewechselt. Bitte die Datei erneut auswählen.");
+ if(replace&&!confirm("Bestehenden Kurs mit allen Lernständen wirklich ersetzen? Vorher wird eine Sicherung erstellt."))return;
+ var meta=D.clone(prepared.course),incoming=D.clone(prepared.entries);
+ if(copy){cid=cid+"-"+crypto.randomUUID();meta.id=cid;meta.label+=" (Kopie)";incoming.forEach(function(v){v.courseId=cid;v.id="import-"+crypto.randomUUID();delete v.importIdentity})}
+ var state=await readState(),old=replace?[]:state.entries.filter(function(v){return v.courseId===cid}),oldIds=new Set(state.entries.filter(function(v){return v.courseId===cid}).map(function(v){return v.id}));
+ var decisions={};document.querySelectorAll('#importConflicts fieldset').forEach(function(f){decisions[f.dataset.group]={mode:f.querySelector('.review-mode').value,fr:f.querySelector('.review-fr').value.split('\n'),de:f.querySelector('.review-de').value.split('\n')}});
+ var plan=D.planImport(old,incoming,replace?[]:state.progress.filter(function(x){return oldIds.has(x.id)}),$("importStrategy").value,decisions);
+ // Imported course backups preserve their raw learning state, remapping only when explicitly copied.
+ if(prepared.mode==='new'&&prepared.source.backupType==='course-backup'){
+  var src=prepared.source;validateBackup({backupType:'full-backup',schemaVersion:7,courses:[src.course],entries:src.entries,progress:src.progress,exams:src.exams,history:src.history,settings:{}});
+  var remap=new Map(prepared.entries.map(function(v,i){return[src.entries[i].id,incoming[i].id]}));
+  plan.entries=incoming;plan.progress=src.progress.map(function(x){return Object.assign({},x,{id:remap.get(x.id)})});
+  state.exams=state.exams.filter(function(e){return(e.courseId||e.id)!==cid}).concat(src.exams.map(function(e){return Object.assign({},e,{id:copy?'exam-'+crypto.randomUUID():e.id,courseId:cid})}));
+  state.history=state.history.filter(function(h){return h.courseId!==cid}).concat(src.history.map(function(h){return Object.assign({},h,{id:copy?crypto.randomUUID():h.id,courseId:cid,vocabularyIds:(h.vocabularyIds||[]).map(function(id){return remap.get(id)||id})})}));
+ }else if(replace){state.exams=state.exams.filter(function(e){return(e.courseId||e.id)!==cid});state.history=state.history.filter(function(h){return h.courseId!==cid})}
+ state.entries=state.entries.filter(function(v){return v.courseId!==cid}).concat(plan.entries);
+ state.progress=state.progress.filter(function(v){return !oldIds.has(v.id)}).concat(plan.progress);
+ state.history.forEach(function(h){if(h.vocabularyIds)h.vocabularyIds=Array.from(new Set(h.vocabularyIds.map(function(id){return plan.aliases[id]||id}))) });
+ state.courses=state.courses.filter(function(c){return c.id!==cid}).concat(meta);
+ // Validate complete proposed state before any write; snapshot failure blocks the action.
+ validateBackup(state);await storeLocalSnapshot(replace?'before-course-replace':'before-import');
+ await writeRecords([[S_VOCAB,state.entries],[S_PROGRESS,state.progress],[S_COURSES,state.courses],[S_EXAMS,state.exams],[S_HISTORY,state.history]],true);
+ pendingImport=null;$("importPreview").hidden=true;await reload();setActiveCourse(cid);populateCourseSelector();populateAllSelectors();updateCourseLabels();saveSettings();await renderHome();await renderOverview();await renderSnapshots();
+ $("vocabImportResult").textContent="Import abgeschlossen: "+plan.counts.new+" neu · "+plan.counts.expanded+" Bedeutungen ergänzt · "+plan.counts.identical+" bereits vorhanden → "+meta.label+".";
 }
 
 function populateAllSelectors(){
@@ -1270,15 +1268,27 @@ $("editUnit").onchange=populateEditParts;
 $("editPart").onchange=updateEditLocation;
 $("editModal").addEventListener("click",function(e){if(e.target===$("editModal"))closeEditModal()});
 
+$("examDate").addEventListener("input",function(){examFormRevision++});
+$("examScopeList").addEventListener("change",function(){examFormRevision++});
 $("saveExam").onclick=function(){runAction(saveExam)};
 $("deleteExam").onclick=function(){runAction(deleteExam)};
 $("startExamLearning").onclick=startExamLearning;
-$("selectAllExamScopes").onclick=function(){[].slice.call($("examScopeList").querySelectorAll('input[type="checkbox"]')).forEach(function(x){x.checked=true})};
-$("clearExamScopes").onclick=function(){[].slice.call($("examScopeList").querySelectorAll('input[type="checkbox"]')).forEach(function(x){x.checked=false})};
+$("selectAllExamScopes").onclick=function(){examFormRevision++;[].slice.call($("examScopeList").querySelectorAll('input[type="checkbox"]')).forEach(function(x){x.checked=true})};
+$("clearExamScopes").onclick=function(){examFormRevision++;[].slice.call($("examScopeList").querySelectorAll('input[type="checkbox"]')).forEach(function(x){x.checked=false})};
 
 $("exportBackup").onclick=function(){runAction(function(){return exportBackup()})};
 $("exportCourse").onclick=function(){runAction(exportCurrentCourse)};
-$("reset").onclick=function(){runAction(resetAll)};
+$("reset").onclick=function(){dataAction(resetAll)};
+$("saveCourseBackup").onclick=function(){dataAction(manualCourseBackup)};
+$("profileName").onchange=function(){localStorage.setItem("vokabeltrainer.profile",this.value.trim())};
+$("importStrategy").onchange=function(){dataAction(renderImportPreview)};
+$("confirmImport").onclick=function(){dataAction(commitImport)};
+$("cancelImport").onclick=function(){pendingImport=null;$("importPreview").hidden=true};
+$("newExam").onclick=function(){examFormRevision++;$("planExamSelect").value="";$("examDate").value="";populateExamScopes([])};
+$("planExamSelect").onchange=function(){runAction(renderExamSummary)};
+$("learnExamStart").onclick=startExamLearning;
+$("learnPlanExam").onclick=function(){showView("plan")};
+[["currentImportFile","current"],["newCourseFile","new"]].forEach(function(pair){$(pair[0]).onchange=function(){var f=this.files[0];this.value="";if(f)dataAction(function(){return importVocabularyFile(f,pair[1])})}});
 $("vocabImportFile").onchange=async function(e){
  var f=e.target.files&&e.target.files[0];if(!f)return;
  $("vocabImportResult").textContent="Importiere "+f.name+" …";
@@ -1292,7 +1302,7 @@ $("vocabImportFile").onchange=async function(e){
 };
 $("backupRestoreFile").onchange=async function(e){
  var f=e.target.files&&e.target.files[0];if(!f)return;
- try{await restoreBackupFile(f)}catch(err){$("backupResult").textContent="Wiederherstellungsfehler: "+err.message}
+ await dataAction(async function(){try{await restoreBackupFile(f)}catch(err){$("backupResult").textContent="Wiederherstellungsfehler: "+err.message}})
  e.target.value=""
 };
 

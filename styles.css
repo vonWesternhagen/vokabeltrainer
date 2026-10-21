@@ -640,3 +640,12 @@ body.trainer-mode .page-head,body.trainer-mode #appStatus{display:none}
  .compact-answer{font-size:25px;min-height:100px}
  .compact-toggle{font-size:.72rem;padding:6px}
 }
+
+/* Data-safety UI: readable on touch screens, separate destructive controls. */
+.danger-zone{border:2px solid #ba3540;margin-top:2rem}
+#importConflicts fieldset{margin:1rem 0;padding:1rem;border:1px solid #ccd4dd;border-radius:12px}
+#importConflicts textarea{display:block;width:100%;min-height:90px;font:inherit}
+#importConflicts label{display:block;margin:.5rem 0}
+#snapshotList>div{padding:1rem 0;border-bottom:1px solid #ddd;overflow-wrap:anywhere}
+#snapshotList button{margin:.3rem;min-height:44px}
+.simple-overview .overview-hit{min-height:44px;text-align:left}

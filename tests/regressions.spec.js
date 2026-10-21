@@ -100,8 +100,9 @@ test('Identität trennt Bedeutungen, Akzente und Kurse ohne Slug-Kollisionen', a
   await importCourse(page, course(entries));
   await importCourse(page, course(entries, 'zweiter', 'Zweiter Kurs'));
   const data = await snapshot(page);
-  expect(data.vocab).toHaveLength(6);
-  expect(new Set(data.vocab.map(v => v.id)).size).toBe(6);
+  expect(data.vocab).toHaveLength(4);
+  expect(data.vocab.filter(v => v.foreign === 'côte').every(v => v.meanings.includes('Küste') && v.meanings.includes('Rippe'))).toBe(true);
+  expect(new Set(data.vocab.map(v => v.id)).size).toBe(4);
 });
 
 for (const explicit of [true, false]) {

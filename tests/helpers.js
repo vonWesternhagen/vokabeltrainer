@@ -19,16 +19,20 @@ function entry(id, overrides = {}) {
 }
 async function openApp(page) {
   await page.goto('/');
-  await expect(page.locator('#appStatus')).toContainText('Version 4.5.1 läuft');
-  await expect(page).toHaveTitle('Vokabeltrainer – Version 4.5.1');
-  await expect(page.locator('.version')).toHaveText('v4.5.1');
+  await expect(page.locator('#appStatus')).toContainText('Version 4.5.7 läuft');
+  await expect(page).toHaveTitle('Vokabeltrainer – Version 4.5.7');
+  await expect(page.locator('.version')).toHaveText('v4.5.7');
 }
 async function importCourse(page, data) {
   await page.click('#tabData');
+  await page.locator('details').evaluate(el => el.open = true);
   await page.locator('#vocabImportFile').setInputFiles({
     name: 'vocabulary.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(data)),
   });
   await expect(page.locator('#vocabImportFile')).toHaveValue('');
+  await expect(page.locator('#importPreview')).toBeVisible();
+  await page.click('#confirmImport');
+  await expect(page.locator('#importPreview')).toBeHidden();
   await expect(page.locator('#vocabImportResult')).toContainText('Import abgeschlossen:');
 }
 async function restore(page, data, valid = true) {

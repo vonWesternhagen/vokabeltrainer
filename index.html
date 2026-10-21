@@ -7,8 +7,8 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Vokabeltrainer">
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="stylesheet" href="styles.css?v=4.5.1">
-  <title>Vokabeltrainer – Version 4.5.1</title>
+  <link rel="stylesheet" href="styles.css?v=4.5.7">
+  <title>Vokabeltrainer – Version 4.5.7</title>
 </head>
 <body>
 <main>
@@ -18,18 +18,18 @@
       <p class="sub">Schritt für Schritt sicherer werden · mit deinem eigenen Lerntempo</p>
       <p class="header-note">Wähle deinen Lernweg, übe gezielt und sieh sofort, was schon sicher sitzt.</p>
     </div>
-    <div class="header-badges"><span class="course-badge" id="activeCourseBadge">Noch kein Kurs</span><span class="version">v4.5.1</span></div>
+    <div class="header-badges"><span class="course-badge" id="activeCourseBadge">Noch kein Kurs</span><span class="version">v4.5.7</span></div>
   </header>
 
   <div id="appStatus" class="status">JavaScript startet …</div>
 
   <nav class="tabs">
-    <button id="tabHome" class="tab active" type="button">Start</button>
+    <button id="tabHome" class="tab active" type="button">Übersicht</button>
     <button id="tabLearn" class="tab" type="button">Lernen</button>
     <button id="tabPlan" class="tab" type="button">Klassenarbeit</button>
-    <button id="tabOverview" class="tab" type="button">Übersicht</button>
-    <button id="tabVocab" class="tab" type="button">Vokabeln</button>
-    <button id="tabData" class="tab" type="button">Daten</button>
+    <button id="tabOverview" class="tab" type="button">Vokabelübersicht</button>
+    <button id="tabVocab" class="tab" type="button">Vokabeln bearbeiten</button>
+    <button id="tabData" class="tab" type="button">Datensicherung</button>
   </nav>
 
 
@@ -44,10 +44,10 @@
         </label>
       </div>
       <div class="home-stats">
-        <div class="home-stat"><strong id="homeTotal">0</strong><span>Vokabeln</span></div>
+        <div class="home-stat"><strong id="homeTotal">0</strong><span>Vokabeln gesamt</span></div>
         <div class="home-stat"><strong id="homeNew">0</strong><span>noch neu</span></div>
-        <div class="home-stat"><strong id="homeDue">0</strong><span>fällig</span></div>
-        <div class="home-stat"><strong id="homeWeak">0</strong><span>schwach</span></div>
+        <div class="home-stat"><strong id="homeDue">0</strong><span>gut gekonnt</span></div>
+        <div class="home-stat"><strong id="homeWeak">0</strong><span>noch nicht so gut</span></div>
       </div>
     </section>
 
@@ -57,23 +57,23 @@
         <span>Stoff auswählen und eine neue Lernrunde starten</span>
       </button>
       <button id="homeDueLearn" class="home-action" type="button">
-        <span class="home-icon">↻</span><strong>Gezielt lernen</strong>
+        <span class="home-icon">↻</span><strong>Lernen</strong>
         <span>Neue oder schlecht gekonnte Vokabeln auswählen</span>
       </button>
       <button id="homePlan" class="home-action" type="button">
         <span class="home-icon">□</span><strong>Klassenarbeit</strong>
-        <span id="homeExamText">Stoff und Lernpensum planen</span>
+        <span id="homeExamText">Klassenarbeit planen</span>
       </button>
       <button id="homeVocab" class="home-action" type="button">
         <span class="home-icon">⌕</span><strong>Vokabeln bearbeiten</strong>
         <span>Suchen, korrigieren, verschieben oder ergänzen</span>
       </button>
       <button id="homeOverview" class="home-action" type="button">
-        <span class="home-icon">◎</span><strong>Übersicht</strong>
+        <span class="home-icon">◎</span><strong>Vokabelübersicht</strong>
         <span>Auf einen Blick sehen, was schon sicher sitzt</span>
       </button>
       <button id="homeData" class="home-action" type="button">
-        <span class="home-icon">⇩</span><strong>Daten & Backup</strong>
+        <span class="home-icon">⇩</span><strong>Datensicherung</strong>
         <span>Neue Vokabeln importieren oder Backup sichern</span>
       </button>
     </section>
@@ -111,6 +111,7 @@
         </label>
       </div>
 
+      <section class="plan-box"><h3>Klassenarbeit lernen</h3><label>Klassenarbeit <select id="learnExamSelect"></select></label><p id="learnExamInfo"></p><div class="buttons"><button id="learnExamStart" type="button">Klassenarbeit lernen</button><button id="learnPlanExam" type="button" class="secondary">Klassenarbeit planen</button></div></section>
       <input id="sessionTypeSelect" type="hidden" value="learn">
 
       <div class="learn-mode-buttons">
@@ -191,6 +192,7 @@
         </label>
       </div>
 
+      <label>Gespeicherte Klassenarbeit <select id="planExamSelect"></select></label><button id="newExam" type="button" class="secondary">Weitere Klassenarbeit planen</button>
       <h3>Stoff auswählen</h3>
       <p class="small">Mehrere Teilbereiche und Module können gemeinsam für eine Klassenarbeit ausgewählt werden.</p>
       <div class="buttons">
@@ -258,6 +260,55 @@
       <div id="vocabList" class="vocab-list"></div>
     </section>
 
+  </section>
+
+  <section id="dataView" hidden>
+    <section class="card">
+      <div class="breadcrumb">Datensicherung</div><h2>Vokabeln zum aktuellen Kurs einlesen</h2>
+      <p class="small">
+        Der Import erkennt auch ältere Vokabeldateien. Kurs und Unité werden vor dem Speichern geprüft; vorhandene Lernstände bleiben erhalten.
+        Damit bleiben manuelle Korrekturen und Verschiebungen erhalten. Lernstände werden hier niemals importiert oder überschrieben.
+      </p>
+      <div class="buttons"><label class="fileButton" for="currentImportFile">Vokabeln zum aktuellen Kurs einlesen</label><input id="currentImportFile" type="file" accept=".json,application/json"></div>
+      <details><summary>Bisheriger kursbezogener Import / Vokabelexport</summary><div class="buttons">
+        <label class="fileButton" for="vocabImportFile">Vokabel-JSON auswählen</label>
+        <input id="vocabImportFile" type="file" accept=".json,application/json">
+        <button type="button" id="exportCourse" class="secondary">Aktiven Kurs als Vokabeldatei exportieren</button>
+      </div>
+      </details><h3>Neuen Kurs einlesen</h3><label class="fileButton" for="newCourseFile">Neuen Kurs einlesen</label><input id="newCourseFile" type="file" accept=".json,application/json">
+      <section id="importPreview" class="plan-box" hidden><h3>Import-Vorschau</h3>
+       <label>Importstrategie <select id="importStrategy"><option value="smart">Sinnvoll einlesen – Standard</option><option value="all">Alles zusätzlich einlesen</option><option value="review">Dubletten zum Editieren öffnen</option></select></label>
+       <label id="courseCollision" hidden>Kurs-ID bereits vorhanden <select id="courseCollisionChoice"><option value="copy">Als neuen Kurs importieren</option><option value="replace">Bestehenden Kurs ersetzen</option></select></label>
+       <p id="importSummary" aria-live="polite"></p><div id="importConflicts"></div><div class="buttons"><button id="confirmImport" type="button">Import übernehmen</button><button id="cancelImport" type="button" class="secondary">Abbrechen</button></div>
+      </section><div id="vocabImportResult" class="small" aria-live="polite"></div>
+    </section>
+
+    <section class="card">
+      <h2>Kurs sichern</h2><label>Vorname <input id="profileName" type="text" autocomplete="given-name"></label><button id="saveCourseBackup" type="button">Kurs sichern</button><h3>Sicherung wiederherstellen</h3>
+      <p class="small">
+        Ein vollständiges Backup enthält Vokabeln, Lernstände in beiden Richtungen, Klassenarbeitsplanung und Einstellungen.
+        <strong>Wiederherstellen ersetzt den aktuellen lokalen Datenbestand vollständig.</strong>
+      </p>
+      <div class="buttons">
+        <button type="button" id="exportBackup" class="secondary">Komplettes Backup exportieren</button>
+        <label class="fileButton danger-label" for="backupRestoreFile">Sicherung wiederherstellen</label>
+        <input id="backupRestoreFile" type="file" accept=".json,application/json">
+      </div>
+      <div id="backupResult" class="small"></div>
+      <div class="plan-box">
+        <strong>NAS / Gerätewechsel:</strong><br>
+        Das komplette Backup kann über die Dateien-App auf FRITZ!NAS gespeichert werden. Auf einem anderen Gerät wird es ausschließlich über
+        „Backup wiederherstellen“ eingelesen. Eine reine Vokabeldatei gehört dagegen immer in den additiven Import oben.
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Automatische Sicherungen</h2><p>Vor Import, Wiederherstellung und Migration werden Sicherungen intern auf diesem Gerät gespeichert. Die letzten zehn pro Kurs bleiben erhalten. Eine Sicherung vor Zurücksetzen wird separat aufbewahrt. Dateiexporte schützen zusätzlich vor Verlust des Browserspeichers.</p><div id="snapshotList"></div></section><section class="card danger-zone"><h2>Alle Daten zurücksetzen</h2>
+      <div class="buttons">
+        <button type="button" id="reset" class="danger">Alle Daten zurücksetzen</button>
+      </div>
+    </section>
+  </section>
     <div id="editModal" class="modal-backdrop" hidden>
       <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="editTitle">
         <div class="modal-head">
@@ -269,7 +320,7 @@
 
         <div class="form-grid editor-grid">
           <label>Französisch
-            <input id="editForeign" type="text">
+            <input id="editForeign" type="text" placeholder="Mehrere Varianten mit ; trennen">
           </label>
 
           <label>Deutsch
@@ -294,50 +345,9 @@
         </div>
       </section>
     </div>
-  </section>
 
-  <section id="dataView" hidden>
-    <section class="card">
-      <div class="breadcrumb">Daten</div><h2>Neue Vokabeln additiv einlesen</h2>
-      <p class="small">
-        Der Import erkennt auch ältere Vokabeldateien. Kurs und Unité werden vor dem Speichern geprüft; vorhandene Lernstände bleiben erhalten.
-        Damit bleiben manuelle Korrekturen und Verschiebungen erhalten. Lernstände werden hier niemals importiert oder überschrieben.
-      </p>
-      <div class="buttons">
-        <label class="fileButton" for="vocabImportFile">Vokabel-JSON auswählen</label>
-        <input id="vocabImportFile" type="file" accept=".json,application/json">
-        <button type="button" id="exportCourse" class="secondary">Aktiven Kurs als Vokabeldatei exportieren</button>
-      </div>
-      <div id="vocabImportResult" class="small"></div>
-    </section>
-
-    <section class="card">
-      <h2>Komplettes Backup</h2>
-      <p class="small">
-        Ein vollständiges Backup enthält Vokabeln, Lernstände in beiden Richtungen, Klassenarbeitsplanung und Einstellungen.
-        <strong>Wiederherstellen ersetzt den aktuellen lokalen Datenbestand vollständig.</strong>
-      </p>
-      <div class="buttons">
-        <button type="button" id="exportBackup" class="secondary">Komplettes Backup exportieren</button>
-        <label class="fileButton danger-label" for="backupRestoreFile">Backup wiederherstellen</label>
-        <input id="backupRestoreFile" type="file" accept=".json,application/json">
-      </div>
-      <div id="backupResult" class="small"></div>
-      <div class="plan-box">
-        <strong>NAS / Gerätewechsel:</strong><br>
-        Das komplette Backup kann über die Dateien-App auf FRITZ!NAS gespeichert werden. Auf einem anderen Gerät wird es ausschließlich über
-        „Backup wiederherstellen“ eingelesen. Eine reine Vokabeldatei gehört dagegen immer in den additiven Import oben.
-      </div>
-    </section>
-
-    <section class="card">
-      <h2>Wartung</h2>
-      <div class="buttons">
-        <button type="button" id="reset" class="secondary">Alle lokalen Daten löschen</button>
-      </div>
-    </section>
-  </section>
 </main>
-<script src="app.js?v=4.5.1"></script>
+<script src="data-core.js?v=4.5.7"></script>
+<script src="app.js?v=4.5.7"></script>
 </body>
 </html>
