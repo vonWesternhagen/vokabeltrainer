@@ -1,4 +1,4 @@
-Vokabeltrainer 4.5.7
+Vokabeltrainer 4.5.9
 
 Statische, lokal arbeitende PWA. index.html über einen HTTP(S)-Server öffnen.
 Kein Bundler und keine Produktionsabhängigkeiten erforderlich.
@@ -15,4 +15,4 @@ Es werden keine Start-/Demo-Vokabeln automatisch eingefügt.
 R2 ist nicht produktiv angebunden. Keine automatische Cloud-Sicherung.
 
 Tests, Datenregeln und Grenzen: TESTING.md.
-Nach Veröffentlichung bei Bedarf mit ?v=4.5.7 öffnen.
+Nach Veröffentlichung bei Bedarf mit ?v=4.5.9 öffnen.

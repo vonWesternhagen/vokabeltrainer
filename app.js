@@ -1,7 +1,7 @@
 (function(){
 "use strict";
 
-var APP_VERSION="4.5.7";
+var APP_VERSION="4.5.9";
 var DB_NAME="VokabeltrainerTest";
 var DB_VERSION=3;
 var S_HISTORY="history",S_SNAPSHOTS="snapshots",historyWork=Promise.resolve();
@@ -742,7 +742,7 @@ async function renderHome(){
   var days=Math.max(0,Math.ceil((new Date(e.date+"T12:00:00")-new Date())/86400000));
   $("homeExamText").textContent="Klassenarbeit in "+days+" Tag"+(days===1?"":"en")+" · Lernpensum planen"
  }else $("homeExamText").textContent="Klassenarbeit planen";
- $("appStatus").textContent="✓ Version 4.5.7 läuft · "+(cid?courseName(cid)+" · "+all.length+" Vokabeln":"noch keine Vokabeln importiert")
+ $("appStatus").textContent="✓ Version 4.5.9 läuft · "+(cid?courseName(cid)+" · "+all.length+" Vokabeln":"noch keine Vokabeln importiert")
 }
 async function switchActiveCourse(id){
  viewRevision++;cancelSession();setActiveCourse(id);
@@ -1052,7 +1052,7 @@ async function readState(){
  return {backupType:"full-backup",schemaVersion:7,appVersion:APP_VERSION,exportedAt:new Date().toISOString(),entries:out.vocab,progress:out.progress,courses:out.courses,exams:out.exams,history:out.history,settings:collectSettings(),profileName:localStorage.getItem("vokabeltrainer.profile")||""};
 }
 async function storeLocalSnapshot(reason,emergency){
- var state=await readState(),cid=activeCourseId()||"all",record={id:crypto.randomUUID(),courseId:cid,reason:reason,emergency:!!emergency,createdAt:new Date().toISOString(),label:emergency?"Sicherung vor Zurücksetzen":courseName(cid)+"_AutoBackup_"+new Date().toISOString(),data:state};
+ var state=await readState(),cid=activeCourseId()||"all",record={id:crypto.randomUUID(),courseId:cid,reason:reason,emergency:!!emergency,createdAt:new Date().toISOString(),label:emergency?"Sicherung vor Zurücksetzen":(reason==="manual"?"Lokales Backup · "+courseName(cid)+" · ":courseName(cid)+"_AutoBackup_")+new Date().toISOString(),data:state};
  await writeRecords([[S_SNAPSHOTS,[record]]]);
  // Only prune after the new snapshot is durably committed. Emergency records are separate.
  var all=await reqP(os(S_SNAPSHOTS).getAll()),sorted=all.filter(function(x){return x.courseId===cid&&!x.emergency}).sort(function(a,b){return b.createdAt.localeCompare(a.createdAt)||b.id.localeCompare(a.id)}),remove=sorted.slice(10);
@@ -1067,7 +1067,7 @@ async function renderSnapshots(){
  records.forEach(function(r){var row=document.createElement("div"),b=document.createElement("button"),exportBtn=document.createElement("button"),text=document.createElement("span");text.textContent=r.label+" · "+r.reason+" · "+r.data.entries.length+" Vokabeln ";b.textContent="Wiederherstellen";exportBtn.textContent="Als Datei sichern";
  b.onclick=function(){dataAction(async function(){await restoreBackupFile(new File([JSON.stringify(r.data)],"snapshot.json",{type:"application/json"}));await renderSnapshots()})};
  exportBtn.onclick=function(){downloadJson(r.data,D.filename(r.label,""))};row.append(text,b,exportBtn);box.appendChild(row)});
- if(!records.length)box.textContent="Noch keine automatischen Sicherungen vorhanden.";
+ if(!records.length)box.textContent="Noch keine lokalen Sicherungen vorhanden.";
 }
 function accumulateTime(owner){var now=performance.now();if(owner.visibleTick!=null)owner.durationMs+=(now-owner.visibleTick);owner.visibleTick=document.hidden?null:now;}
 function finishHistory(owner,completed){
@@ -1280,6 +1280,7 @@ $("exportBackup").onclick=function(){runAction(function(){return exportBackup()}
 $("exportCourse").onclick=function(){runAction(exportCurrentCourse)};
 $("reset").onclick=function(){dataAction(resetAll)};
 $("saveCourseBackup").onclick=function(){dataAction(manualCourseBackup)};
+$("createLocalBackup").onclick=function(){dataAction(async function(){await storeLocalSnapshot("manual");await renderSnapshots();$("backupResult").textContent="Lokales Backup auf diesem Gerät erstellt."})};
 $("profileName").onchange=function(){localStorage.setItem("vokabeltrainer.profile",this.value.trim())};
 $("importStrategy").onchange=function(){dataAction(renderImportPreview)};
 $("confirmImport").onclick=function(){dataAction(commitImport)};

@@ -7,8 +7,8 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Vokabeltrainer">
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="stylesheet" href="styles.css?v=4.5.7">
-  <title>Vokabeltrainer – Version 4.5.7</title>
+  <link rel="stylesheet" href="styles.css?v=4.5.9">
+  <title>Vokabeltrainer – Version 4.5.9</title>
 </head>
 <body>
 <main>
@@ -18,7 +18,7 @@
       <p class="sub">Schritt für Schritt sicherer werden · mit deinem eigenen Lerntempo</p>
       <p class="header-note">Wähle deinen Lernweg, übe gezielt und sieh sofort, was schon sicher sitzt.</p>
     </div>
-    <div class="header-badges"><span class="course-badge" id="activeCourseBadge">Noch kein Kurs</span><span class="version">v4.5.7</span></div>
+    <div class="header-badges"><span class="course-badge" id="activeCourseBadge">Noch kein Kurs</span><span class="version">v4.5.9</span></div>
   </header>
 
   <div id="appStatus" class="status">JavaScript startet …</div>
@@ -284,7 +284,7 @@
     </section>
 
     <section class="card">
-      <h2>Kurs sichern</h2><label>Vorname <input id="profileName" type="text" autocomplete="given-name"></label><button id="saveCourseBackup" type="button">Kurs sichern</button><h3>Sicherung wiederherstellen</h3>
+      <h2>Kurs als Datei sichern</h2><label>Vorname <input id="profileName" type="text" autocomplete="given-name"></label><button id="saveCourseBackup" type="button">Kurs als Datei sichern</button><p>Die vollständige Kurssicherung wird als JSON-Datei auf diesem Gerät exportiert. Es werden keine Daten hochgeladen.</p><h3>Sicherung wiederherstellen</h3>
       <p class="small">
         Ein vollständiges Backup enthält Vokabeln, Lernstände in beiden Richtungen, Klassenarbeitsplanung und Einstellungen.
         <strong>Wiederherstellen ersetzt den aktuellen lokalen Datenbestand vollständig.</strong>
@@ -303,7 +303,7 @@
     </section>
 
     <section class="card">
-      <h2>Automatische Sicherungen</h2><p>Vor Import, Wiederherstellung und Migration werden Sicherungen intern auf diesem Gerät gespeichert. Die letzten zehn pro Kurs bleiben erhalten. Eine Sicherung vor Zurücksetzen wird separat aufbewahrt. Dateiexporte schützen zusätzlich vor Verlust des Browserspeichers.</p><div id="snapshotList"></div></section><section class="card danger-zone"><h2>Alle Daten zurücksetzen</h2>
+      <h2>Lokale Sicherungen</h2><button id="createLocalBackup" type="button">Lokales Backup erstellen</button><p>Dieses Backup bleibt in dieser PWA auf diesem Gerät. Automatische Sicherungen vor Import, Wiederherstellung, Kursersetzung, Reset und Migration werden ebenfalls intern auf diesem Gerät gespeichert. Die letzten zehn pro Kurs bleiben erhalten. Eine Sicherung vor Zurücksetzen wird separat aufbewahrt. Dateiexporte schützen zusätzlich vor Verlust des Browserspeichers.</p><div id="snapshotList"></div></section><section class="card danger-zone"><h2>Alle Daten zurücksetzen</h2>
       <div class="buttons">
         <button type="button" id="reset" class="danger">Alle Daten zurücksetzen</button>
       </div>
@@ -347,7 +347,7 @@
     </div>
 
 </main>
-<script src="data-core.js?v=4.5.7"></script>
-<script src="app.js?v=4.5.7"></script>
+<script src="data-core.js?v=4.5.9"></script>
+<script src="app.js?v=4.5.9"></script>
 </body>
 </html>

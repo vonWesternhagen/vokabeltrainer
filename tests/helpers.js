@@ -19,9 +19,9 @@ function entry(id, overrides = {}) {
 }
 async function openApp(page) {
   await page.goto('/');
-  await expect(page.locator('#appStatus')).toContainText('Version 4.5.7 läuft');
-  await expect(page).toHaveTitle('Vokabeltrainer – Version 4.5.7');
-  await expect(page.locator('.version')).toHaveText('v4.5.7');
+  await expect(page.locator('#appStatus')).toContainText('Version 4.5.9 läuft');
+  await expect(page).toHaveTitle('Vokabeltrainer – Version 4.5.9');
+  await expect(page.locator('.version')).toHaveText('v4.5.9');
 }
 async function importCourse(page, data) {
   await page.click('#tabData');

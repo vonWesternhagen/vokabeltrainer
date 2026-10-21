@@ -1,4 +1,4 @@
-# Vokabeltrainer 4.5.7: Entwicklung und Tests
+# Vokabeltrainer 4.5.9: Entwicklung und Tests
 
 Die Anwendung bleibt eine statische Browser-App ohne Build-Schritt oder
 Produktionsabhängigkeiten. Node.js und Playwright werden nur zum Testen benötigt.
@@ -127,17 +127,17 @@ Tabwechseln keine History-Einträge. Browser-Zurück verlässt deshalb das aktue
 Dokument; intern dienen Tabs und „Beenden“ zur Navigation. Es wird kein Router
 und keine neue persistierte Zustandsstruktur eingeführt.
 
-## Versionierung ab 4.5.7
+## Versionierung ab 4.5.9
 
 Jede Änderung erhält eine neue Versionsnummer; kleine Änderungen erhöhen die Patch-Version.
 Dies gilt für Programm, Verhalten, UI, Tests, technische Implementierung und
-Release-Artefakte (z. B. 4.5.5 → 4.5.6 → 4.5.7). App-/Paketversion, sichtbare
+Release-Artefakte (z. B. 4.5.7 → 4.5.8 → 4.5.9). App-/Paketversion, sichtbare
 Versionsanzeigen, Asset-URLs, Service-Worker-Cache, Testerwartungen und aktuelle
 Dokumentation werden gemeinsam aktualisiert. Daten- und Schemaversionen sind
 davon unabhängig und werden nicht allein wegen eines Releases geändert.
 
 
-## Erweiterung 4.5.7
+## Erweiterung 4.5.9
 
 `data-core.js` enthält browserunabhängige Varianten-, Import- und Backupoperationen.
 Die bisherige Primärform `foreign` und die Liste `meanings` bleiben erhalten;
@@ -183,3 +183,18 @@ prüft mit kontrollierter Uhr, dass spätere Fokuswechsel und Schließen erhalte
 
 Ein verzögertes Lesen der Snapshot-Liste darf die laufende Profileingabe nicht
 überschreiben; der anschließende Kursexport wird in demselben Szenario geprüft.
+
+
+## Lokale Sicherungen 4.5.9
+
+Die Suche im gesamten versionierten PWA-Code fand keine GitHub-Backup-API,
+Upload-Funktion oder GitHub-Bestätigungsdialoge. GitHub Pages liefert nur die App.
+„Kurs als Datei sichern“ exportiert eine lokale JSON-Datei. „Lokales Backup
+erstellen“ verwendet dieselbe IndexedDB-Snapshotfunktion wie automatische
+Sicherungen; es gilt dieselbe Retention (zehn reguläre Snapshots je Kurs).
+Datei-/interner Restore und Reset benötigen keinen Netzwerkzugriff.
+`local-backup.spec.js` blockiert und protokolliert nach dem App-Start sämtliche
+HTTP-Anfragen während Export, internem Backup, Restore und Reset. Es prüft
+zusätzlich die Dialogtexte und unveränderte Nutzdaten beim Wiederherstellen.
+Browser- oder Betriebssystemdialoge können die Herkunft einer heruntergeladenen
+Datei nennen; diese werden nicht von der PWA gesteuert.
