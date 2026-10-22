@@ -1,4 +1,4 @@
-# Vokabeltrainer 4.6.2: Entwicklung und Tests
+# Vokabeltrainer 4.7.0: Entwicklung und Tests
 
 Die Anwendung bleibt eine statische Browser-App ohne Build-Schritt oder
 Produktionsabhängigkeiten. Node.js und Playwright werden nur zum Testen benötigt.
@@ -127,17 +127,17 @@ Tabwechseln keine History-Einträge. Browser-Zurück verlässt deshalb das aktue
 Dokument; intern dienen Tabs und „Beenden“ zur Navigation. Es wird kein Router
 und keine neue persistierte Zustandsstruktur eingeführt.
 
-## Versionierung ab 4.6.2
+## Versionierung ab 4.7.0
 
 Jede Änderung erhält eine neue Versionsnummer; kleine Änderungen erhöhen die Patch-Version.
 Dies gilt für Programm, Verhalten, UI, Tests, technische Implementierung und
-Release-Artefakte (z. B. 4.5.7 → 4.5.8 → 4.6.2). App-/Paketversion, sichtbare
+Release-Artefakte (z. B. 4.5.7 → 4.5.8 → 4.7.0). App-/Paketversion, sichtbare
 Versionsanzeigen, Asset-URLs, Service-Worker-Cache, Testerwartungen und aktuelle
 Dokumentation werden gemeinsam aktualisiert. Daten- und Schemaversionen sind
 davon unabhängig und werden nicht allein wegen eines Releases geändert.
 
 
-## Erweiterung 4.6.2
+## Erweiterung 4.7.0
 
 `data-core.js` enthält browserunabhängige Varianten-, Import- und Backupoperationen.
 Die bisherige Primärform `foreign` und die Liste `meanings` bleiben erhalten;
@@ -185,7 +185,7 @@ Ein verzögertes Lesen der Snapshot-Liste darf die laufende Profileingabe nicht
 überschreiben; der anschließende Kursexport wird in demselben Szenario geprüft.
 
 
-## Lokale Sicherungen 4.6.2
+## Lokale Sicherungen 4.7.0
 
 Die Suche im gesamten versionierten PWA-Code fand keine GitHub-Backup-API,
 Upload-Funktion oder GitHub-Bestätigungsdialoge. GitHub Pages liefert nur die App.
@@ -200,7 +200,7 @@ Browser- oder Betriebssystemdialoge können die Herkunft einer heruntergeladenen
 Datei nennen; diese werden nicht von der PWA gesteuert.
 
 
-## Optionale Online-Sicherung 4.6.2 / Worker 0.2.1
+## Optionale Online-Sicherung 4.7.0 / Worker 0.2.1
 
 IndexedDB bleibt Version 3. Kurssicherung bleibt Schema 1 (zusätzliche optionale
 Backup-ID und Art); Gesamtsicherungen bleiben Schema 7. Die Upload-Warteschlange
@@ -246,7 +246,7 @@ Abschluss 22.10.2026: 23 Unit-Tests, 124 verschiedene relevante Browserfälle
 (Chromium/WebKit jeweils Desktop, Touch Hoch-/Querformat), 191 Worker-Tests und
 15 PowerShell-Prüfungen bestanden. Von den Browserfällen bestanden 118 direkt;
 der sechsmal ausgeführte neue Restore-Roundtrip wartete zunächst auf eine alte
-Erfolgsmeldung. In 4.6.2 wartet ausschließlich dieser Test nun auf den tatsächlich
+Erfolgsmeldung. In 4.7.0 wartet ausschließlich dieser Test nun auf den tatsächlich
 wiederhergestellten Datenbestand. Alle sechs Varianten und vier Cache-/Offlinefälle
 bestanden anschließend (10/10). Keine Änderung der Restore-Implementierung nötig.
 Syntax, Versionskonsistenz, statische Produktionsdateien und Wrangler-Dry-Run grün.
@@ -254,3 +254,8 @@ Worker 0.2.1: Version-ID `78525cfb-490a-429d-a003-b03167c8982d`, 100 % aktiv.
 Echter NAS-/Windows-DPAPI-Test und Geräte-Paarung stehen bis zum Benutzer-Setup aus.
 Die direkte öffentliche HTTP-Prüfung ist durch die Netzwerkfreigaben dieser
 Codex-Umgebung eingeschränkt; Cloudflare-Metadaten und Pages-Workflow werden geprüft.
+
+
+## Sicherungsoberfläche 4.7.0
+
+Die Datensicherungsseite besteht aus drei Karten: Einlesen, Sichern und dem abgesetzten Bereich Alles zurücksetzen. „Neuen Kurs einlesen“ heißt „Neuen Kurs einrichten“. „Diesen Kurs sichern“ zeigt den aktiven Kurs und erzeugt eine normale Kurssicherung lokal sowie – bei eingerichteter Online-Sicherung – zusätzlich für R2/NAS. „Alle Kurse sichern“ erzeugt pro vorhandenem Kurs eine eigene Kurssicherung; es wird kein neues Gesamtbackup erzeugt. Alte Gesamtsicherungen bleiben wiederherstellbar. Die NAS-Zuordnung bleibt deshalb unverändert kursbezogen.
