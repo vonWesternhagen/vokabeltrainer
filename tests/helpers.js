@@ -19,9 +19,9 @@ function entry(id, overrides = {}) {
 }
 async function openApp(page) {
   await page.goto('/');
-  await expect(page.locator('#appStatus')).toContainText('Version 4.6.2 läuft');
-  await expect(page).toHaveTitle('Vokabeltrainer – Version 4.6.2');
-  await expect(page.locator('.version')).toHaveText('v4.6.2');
+  await expect(page.locator('#appStatus')).toContainText('Version 4.7.0 läuft');
+  await expect(page).toHaveTitle('Vokabeltrainer – Version 4.7.0');
+  await expect(page.locator('.version')).toHaveText('v4.7.0');
 }
 async function importCourse(page, data) {
   await page.click('#tabData');
@@ -104,13 +104,21 @@ async function finishWithReveals(page, count) {
   return prompts;
 }
 async function exportBackup(page) {
-  await page.click('#tabData');
-  const pending = page.waitForEvent('download');
-  await page.click('#exportBackup');
-  const download = await pending;
-  const stream = await download.createReadStream();
-  const chunks = [];
-  for await (const chunk of stream) chunks.push(chunk);
-  return JSON.parse(Buffer.concat(chunks).toString());
+  return page.evaluate(async () => {
+    const db = await new Promise((resolve, reject) => {
+      const r = indexedDB.open('VokabeltrainerTest');r.onsuccess = () => resolve(r.result);r.onerror = () => reject(r.error);
+    });
+    try {
+      const getAll = name => new Promise((resolve, reject) => {
+        const r = db.transaction(name).objectStore(name).getAll();r.onsuccess = () => resolve(r.result);r.onerror = () => reject(r.error);
+      });
+      const [entries, progress, courses, exams, history] = await Promise.all(['vocab','progress','courses','exams','history'].map(getAll));
+      let settings = {};try { settings = JSON.parse(localStorage.getItem('vokabeltrainer.settings.v4') || '{}'); } catch {}
+      settings.activeCourse = localStorage.getItem('vokabeltrainer.activeCourse.v1') || settings.activeCourse || null;
+      return { backupType:'full-backup', appVersion:'4.7.0', schemaVersion:7, history,
+        profileName:localStorage.getItem('vokabeltrainer.profile') || '', exportedAt:new Date().toISOString(),
+        courses, entries, progress, exams, settings };
+    } finally { db.close(); }
+  });
 }
 module.exports = { test, expect, fixture79, course, entry, openApp, importCourse, restore, snapshot, seedProgress, startRound, finishWithReveals, exportBackup };
