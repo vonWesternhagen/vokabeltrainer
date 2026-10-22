@@ -32,7 +32,7 @@ test('File export, IndexedDB backup, both restores and emergency reset remain lo
   page.on('dialog', dialog => dialogs.push(dialog.message()));
   const baseline = await snapshot(page);
   const download = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'Kurs als Datei sichern', exact: true }).click();
+  await page.click('#saveCourseBackup');
   const file = await download, stream = await file.createReadStream(), chunks = [];
   for await (const chunk of stream) chunks.push(chunk);
   const backup = JSON.parse(Buffer.concat(chunks).toString('utf8'));
