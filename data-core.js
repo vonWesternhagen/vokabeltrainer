@@ -61,7 +61,7 @@ function buildCourseBackup(state,cid,appVersion,profileName=''){
  const course=state.courses.find(c=>c.id===cid);if(!course)throw Error('Kein Kurs ausgewählt.');
  const entries=state.entries.filter(v=>v.courseId===cid),ids=new Set(entries.map(v=>v.id));
  const progress=state.progress.filter(p=>ids.has(p.id)),exams=state.exams.filter(e=>(e.courseId||e.id)===cid),history=(state.history||[]).filter(h=>h.courseId===cid);
- return {backupType:'course-backup',schemaVersion:1,appVersion,exportedAt:new Date().toISOString(),profileName,course:clone(course),entries:clone(entries),progress:clone(progress),exams:clone(exams),history:clone(history),summary:summary(entries,progress,history,exams)};
+ return {backupType:'course-backup',schemaVersion:1,backupId:crypto.randomUUID(),backupKind:'manual',appVersion,exportedAt:new Date().toISOString(),profileName,course:clone(course),entries:clone(entries),progress:clone(progress),exams:clone(exams),history:clone(history),summary:summary(entries,progress,history,exams)};
 }
 function filename(course,profile,date=new Date().toISOString().slice(0,10)){return [course,profile,date].filter(Boolean).join('_').replace(/[\\/<>:"|?*\x00-\x1f]/g,'').replace(/\.{2,}/g,'.').slice(0,180)+'.json';}
 const api={clone,key,variants,unique,french,german,normalize,percentage,summary,mergeProgress,groups,planImport,buildCourseBackup,filename};

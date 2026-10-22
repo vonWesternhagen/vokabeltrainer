@@ -1,6 +1,6 @@
-Vokabeltrainer 4.5.9
+Vokabeltrainer 4.6.2
 
-Statische, lokal arbeitende PWA. index.html über einen HTTP(S)-Server öffnen.
+Statische PWA mit lokalem Datenbestand und optionaler Online-Sicherung. index.html über einen HTTP(S)-Server öffnen.
 Kein Bundler und keine Produktionsabhängigkeiten erforderlich.
 
 - Übersicht mit Lernstatistik; direkte Bearbeitung in der Vokabelübersicht.
@@ -12,7 +12,11 @@ Kein Bundler und keine Produktionsabhängigkeiten erforderlich.
 
 Bestehende Kurse, Lernstände und Klassenarbeiten bleiben erhalten.
 Es werden keine Start-/Demo-Vokabeln automatisch eingefügt.
-R2 ist nicht produktiv angebunden. Keine automatische Cloud-Sicherung.
+Online-Sicherung ist optional und erst nach Geräte-Paarung aktiv.
+Lokale Datei- und IndexedDB-Sicherungen funktionieren weiterhin offline.
+Private R2-Sicherung über den bestehenden Worker; Windows archiviert zum NAS.
+Einrichtung, echter NAS-Einzeltest und Grenzen: sync/README.md.
+Keine Aufgabenplanung vor bestätigtem NAS-Test. GitHub liefert nur die PWA.
 
 Tests, Datenregeln und Grenzen: TESTING.md.
-Nach Veröffentlichung bei Bedarf mit ?v=4.5.9 öffnen.
+Nach Veröffentlichung bei Bedarf mit ?v=4.6.2 öffnen.

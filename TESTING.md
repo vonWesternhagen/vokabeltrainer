@@ -1,4 +1,4 @@
-# Vokabeltrainer 4.5.9: Entwicklung und Tests
+# Vokabeltrainer 4.6.2: Entwicklung und Tests
 
 Die Anwendung bleibt eine statische Browser-App ohne Build-Schritt oder
 Produktionsabhängigkeiten. Node.js und Playwright werden nur zum Testen benötigt.
@@ -127,17 +127,17 @@ Tabwechseln keine History-Einträge. Browser-Zurück verlässt deshalb das aktue
 Dokument; intern dienen Tabs und „Beenden“ zur Navigation. Es wird kein Router
 und keine neue persistierte Zustandsstruktur eingeführt.
 
-## Versionierung ab 4.5.9
+## Versionierung ab 4.6.2
 
 Jede Änderung erhält eine neue Versionsnummer; kleine Änderungen erhöhen die Patch-Version.
 Dies gilt für Programm, Verhalten, UI, Tests, technische Implementierung und
-Release-Artefakte (z. B. 4.5.7 → 4.5.8 → 4.5.9). App-/Paketversion, sichtbare
+Release-Artefakte (z. B. 4.5.7 → 4.5.8 → 4.6.2). App-/Paketversion, sichtbare
 Versionsanzeigen, Asset-URLs, Service-Worker-Cache, Testerwartungen und aktuelle
 Dokumentation werden gemeinsam aktualisiert. Daten- und Schemaversionen sind
 davon unabhängig und werden nicht allein wegen eines Releases geändert.
 
 
-## Erweiterung 4.5.9
+## Erweiterung 4.6.2
 
 `data-core.js` enthält browserunabhängige Varianten-, Import- und Backupoperationen.
 Die bisherige Primärform `foreign` und die Liste `meanings` bleiben erhalten;
@@ -185,7 +185,7 @@ Ein verzögertes Lesen der Snapshot-Liste darf die laufende Profileingabe nicht
 überschreiben; der anschließende Kursexport wird in demselben Szenario geprüft.
 
 
-## Lokale Sicherungen 4.5.9
+## Lokale Sicherungen 4.6.2
 
 Die Suche im gesamten versionierten PWA-Code fand keine GitHub-Backup-API,
 Upload-Funktion oder GitHub-Bestätigungsdialoge. GitHub Pages liefert nur die App.
@@ -198,3 +198,59 @@ HTTP-Anfragen während Export, internem Backup, Restore und Reset. Es prüft
 zusätzlich die Dialogtexte und unveränderte Nutzdaten beim Wiederherstellen.
 Browser- oder Betriebssystemdialoge können die Herkunft einer heruntergeladenen
 Datei nennen; diese werden nicht von der PWA gesteuert.
+
+
+## Optionale Online-Sicherung 4.6.2 / Worker 0.2.1
+
+IndexedDB bleibt Version 3. Kurssicherung bleibt Schema 1 (zusätzliche optionale
+Backup-ID und Art); Gesamtsicherungen bleiben Schema 7. Die Upload-Warteschlange
+verwendet zusätzliche markierte Einträge im bestehenden Snapshot-Store, ohne
+bestehende Kurse, IDs oder Lerndaten zu ersetzen. Reset erhält das Notfallbackup,
+ausstehende Kopien und die Geräte-Paarung. Browserdaten löschen entfernt sie.
+Ohne Paarung findet kein Online-Upload statt. Nach Paarung werden manuelle lokale
+Sicherungen zusätzlich online vorgemerkt; automatische Sicherungen vor Änderungen
+sowie nach Import/Restore verwenden denselben Kurssicherungsbuilder. Es gibt keine
+Sicherung pro beantworteter Vokabel. Admin-, Sync- und NAS-Zugangsdaten sind nicht
+Bestandteil des PWA-Codes oder eines Backups.
+
+`online-backup.spec.js` prüft echte Browserdaten, den tatsächlichen Worker-Handler
+mit isoliertem R2-Mock und den tatsächlichen PowerShell-Synchronisierer. Dabei werden
+4.5.9-Bestandsdaten und eine alte Kurssicherung ohne neue optionale Felder geladen,
+Lernen geprüft und Cloudbytes nach lokaler NAS-Simulation wieder über den Dateidialog
+restauriert. Offline-Warteschlange, Wiederholung nach R2-Fehler und Reset werden in
+Chromium/WebKit sowie beiden Touch-Orientierungen geprüft.
+
+Voraussetzungen dieser Integrationstests: separat geführter Worker neben dem PWA-Repo
+(oder `BACKUP_WORKER_DIR`) und PowerShell 7 (`PWA_PWSH` als ausführbare Datei).
+In dieser Umgebung ist PowerShell unter `/tmp/pwa-pwsh/pwsh` installiert.
+
+```sh
+npx playwright test tests/online-backup.spec.js tests/data-safety.spec.js tests/local-backup.spec.js tests/backup-offline.spec.js
+pwsh -NoProfile -File tests/sync.test.ps1
+pwsh -NoProfile -File tests/setup.test.ps1
+```
+
+Worker separat: Syntaxprüfung, alle Backup-/Filelink-/FTPS-/R2-Tests und
+`wrangler deploy --dry-run`. Die Sicherheitsprüfungen umfassen einmaliges/ablaufendes
+Pairing, Widerruf, getrennte Rollen, fremde Profile, Methoden/Content-Type, ungültiges
+JSON, 2-MiB-Limit, Prüfsummen, unveränderliche serverseitige Keys und Retention mit
+Schutz unbestätigter Backups. Keine neue FTPS-Machbarkeitsprüfung.
+
+PowerShell: zwölf Sync-Prüfungen (mehrere Profile/Kurse, Idempotenz, Integrität,
+fehlendes Ziel, Schreibabbruch, Neustart, keine Überschreibung) und drei Prüfungen
+zur Wiederaufnahme unterbrochener Secret-Einrichtung mit synthetischen Zugangsdaten.
+Windows-DPAPI, SMB und Aufgabenplanung sind damit nicht real bestätigt. Das Setup
+führt den echten Einzeltest aus und aktiviert keine geplante Aufgabe.
+
+Abschluss 22.10.2026: 23 Unit-Tests, 124 verschiedene relevante Browserfälle
+(Chromium/WebKit jeweils Desktop, Touch Hoch-/Querformat), 191 Worker-Tests und
+15 PowerShell-Prüfungen bestanden. Von den Browserfällen bestanden 118 direkt;
+der sechsmal ausgeführte neue Restore-Roundtrip wartete zunächst auf eine alte
+Erfolgsmeldung. In 4.6.2 wartet ausschließlich dieser Test nun auf den tatsächlich
+wiederhergestellten Datenbestand. Alle sechs Varianten und vier Cache-/Offlinefälle
+bestanden anschließend (10/10). Keine Änderung der Restore-Implementierung nötig.
+Syntax, Versionskonsistenz, statische Produktionsdateien und Wrangler-Dry-Run grün.
+Worker 0.2.1: Version-ID `78525cfb-490a-429d-a003-b03167c8982d`, 100 % aktiv.
+Echter NAS-/Windows-DPAPI-Test und Geräte-Paarung stehen bis zum Benutzer-Setup aus.
+Die direkte öffentliche HTTP-Prüfung ist durch die Netzwerkfreigaben dieser
+Codex-Umgebung eingeschränkt; Cloudflare-Metadaten und Pages-Workflow werden geprüft.

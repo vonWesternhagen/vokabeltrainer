@@ -119,7 +119,7 @@ test('Vorhandene gespeicherte Volet-3- und Modulzuordnungen werden beim Start no
   backup.entries.forEach(v => { v.part = 'sonstiges'; });
   await restore(page, backup);await page.reload();
   // Das Load-Event wartet nicht auf die asynchrone IndexedDB-Initialisierung.
-  await expect(page.locator('#appStatus')).toContainText('Version 4.5.9 läuft');
+  await expect(page.locator('#appStatus')).toContainText('Version 4.6.2 läuft');
   const data = await snapshot(page);
   expect(data.vocab.find(v => v.id === 'legacy')).toMatchObject({ unitId: 'unite-1', part: 'volet-3' });
   for (const id of ['numeric', 'alpha']) expect(data.vocab.find(v => v.id === id).part).toBe('alle');

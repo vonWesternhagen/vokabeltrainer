@@ -1,10 +1,10 @@
 {
   "name": "vokabeltrainer",
-  "version": "4.5.9",
+  "version": "4.6.2",
   "private": true,
   "description": "Browserbasierter Vokabeltrainer \u2013 Entwicklungs- und Regressionstests",
   "scripts": {
-    "check": "node --check app.js && node --check data-core.js && node --check sw.js",
+    "check": "node --check app.js && node --check data-core.js && node --check sw.js && node --check online-backup.js",
     "test": "playwright test",
     "test:chromium": "playwright test --project=chromium --project=chromium-ipad-portrait --project=chromium-ipad-landscape",
     "test:webkit": "playwright test --project=webkit --project=webkit-ipad-portrait --project=webkit-ipad-landscape",
