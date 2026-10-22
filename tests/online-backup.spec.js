@@ -16,7 +16,21 @@ async function setup(page){
  return {env,pair,handleBackup,api};
 }
 async function rows(page,name='snapshots'){return page.evaluate(async name=>{const db=await new Promise((r,j)=>{const q=indexedDB.open('VokabeltrainerTest');q.onsuccess=()=>r(q.result);q.onerror=()=>j(q.error)});try{return await new Promise((r,j)=>{const q=db.transaction(name).objectStore(name).getAll();q.onsuccess=()=>r(q.result);q.onerror=()=>j(q.error)})}finally{db.close()}},name)}
+async function saveCurrentCourse(page){await page.fill('#profileName','Testprofil');await page.locator('#profileName').blur();const d=page.waitForEvent('download');await page.click('#saveCourseBackup');await d;}
 async function seed(page){await openApp(page);await importCourse(page,course([entry('a',{foreign:'commencer',foreignVariants:['commencer','débuter'],meanings:['anfangen','beginnen']})]));await seedProgress(page,[{id:'a',attempts:5,correct:4}]);}
+
+test('Alle Kurse werden lokal einzeln und online kursweise gesichert',async({page})=>{
+ const h=await setup(page);await openApp(page);
+ await importCourse(page,course([entry('fr-a')],'fr-6','Französisch 6'));
+ await importCourse(page,course([entry('en-a',{foreign:'school',meanings:['Schule']})],'en-6','Englisch 6'));
+ await h.pair();await page.fill('#profileName','Jakob');await page.locator('#profileName').blur();
+ const downloads=[];page.on('download',d=>downloads.push(d));
+ await page.click('#saveAllCourses');
+ await expect.poll(()=>downloads.length).toBe(2);
+ await expect(page.locator('#backupResult')).toContainText('2 Kurse lokal jeweils als eigene Datei gesichert.');
+ const list=await(await h.api(h.handleBackup,h.env,'/backup/list',h.env.BACKUP_SYNC_TOKEN)).json();
+ expect(list.items).toHaveLength(2);expect(new Set(list.items.map(x=>x.courseName))).toEqual(new Set(['Französisch 6','Englisch 6']));
+});
 
 test('4.5.9 multi-course raw data and old backups remain compatible; online/NAS/restore roundtrip',async({page})=>{
  test.setTimeout(60000);const h=await setup(page);await page.goto('/manifest.webmanifest');
@@ -28,7 +42,7 @@ test('4.5.9 multi-course raw data and old backups remain compatible; online/NAS/
  for(const [n,list]of Object.entries(old))expect(await rows(page,n)).toEqual(list);
  await startRound(page,{count:1});await page.fill('#answer','débuter');await page.click('#check');await expect(page.locator('#feedback')).toContainText('Richtig');await page.click('#leaveTrainer');
  await expect.poll(async()=>(await rows(page,'history')).length).toBe(2);const before=await snapshot(page),history=await rows(page,'history');
- await h.pair();await page.click('#onlineNow');await expect(page.locator('#onlineStatus')).toContainText('Zuletzt gesichert:');
+ await h.pair();await saveCurrentCourse(page);await expect(page.locator('#onlineStatus')).toContainText('Zuletzt gesichert:');
  expect(await snapshot(page)).toEqual(before);expect(await rows(page,'history')).toEqual(history);
  const list=await(await h.api(h.handleBackup,h.env,'/backup/list',h.env.BACKUP_SYNC_TOKEN)).json();expect(list.items).toHaveLength(1);
  const response=await h.api(h.handleBackup,h.env,list.items[0].downloadPath,h.env.BACKUP_SYNC_TOKEN);const bytes=Buffer.from(await response.arrayBuffer());
@@ -43,7 +57,7 @@ test('4.5.9 multi-course raw data and old backups remain compatible; online/NAS/
  }finally{fs.rmSync(dir,{recursive:true,force:true})}
 });
 test('offline queue survives reload and uploads once connection returns',async({page,context})=>{
- const h=await setup(page);await seed(page);await h.pair();const before=await snapshot(page);await context.setOffline(true);await page.click('#onlineNow');
+ const h=await setup(page);await seed(page);await h.pair();const before=await snapshot(page);await context.setOffline(true);await saveCurrentCourse(page);
  await expect.poll(async()=>(await rows(page)).filter(x=>x.online&&x.status==='pendingUpload').length).toBe(1);expect(await snapshot(page)).toEqual(before);
  await context.setOffline(false);await expect(page.locator('#onlineStatus')).toContainText('Zuletzt gesichert:');
  await page.reload();await page.click('#tabData');await expect(page.locator('#onlineStatus')).toContainText('Zuletzt gesichert:');
@@ -58,6 +72,6 @@ test('R2 failure preserves local backup and learning, retry confirms same immuta
  const saved=(await rows(page)).find(x=>x.online);expect(saved.serialized).toBe(pending.serialized);expect(saved.status).toBe('uploaded');expect(saved.retryCount).toBe(2);
 });
 test('pending online copies survive reset and automatic snapshot retention',async({page,context})=>{
- const h=await setup(page);await seed(page);await h.pair();await context.setOffline(true);await page.click('#onlineNow');await expect.poll(async()=>(await rows(page)).filter(x=>x.online).length).toBe(1);
+ const h=await setup(page);await seed(page);await h.pair();await context.setOffline(true);await saveCurrentCourse(page);await expect.poll(async()=>(await rows(page)).filter(x=>x.online).length).toBe(1);
  await page.click('#reset');await expect(page.locator('#homeTotal')).toHaveText('0');const all=await rows(page);expect(all.some(x=>x.emergency)).toBe(true);expect(all.filter(x=>x.online).every(x=>x.data.entries.length===1)).toBe(true);expect(all.some(x=>x.status==='pendingUpload')).toBe(true);
 });
