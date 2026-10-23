@@ -10,7 +10,7 @@ function canonical(value){
  if(value&&typeof value==='object')return Object.fromEntries(Object.keys(value).sort().map(k=>[k,canonical(value[k])]));return value;
 }
 function create({db,build,readState,version,onChange=()=>{}}){
- let running=null,flushRequested=false,localError=false,queueWork=Promise.resolve();
+ let running=null,flushRequested=false,localError=false,queueWork=Promise.resolve(),pausedCourses=new Set();
  function config(){try{const c=JSON.parse(localStorage.getItem(SETTINGS));return c&&typeof c.deviceToken==='string'&&c.deviceId&&c.profileId?c:null;}catch{return null;}}
  function all(){return new Promise((resolve,reject)=>{const q=db.transaction(STORE).objectStore(STORE).getAll();q.onsuccess=()=>resolve(q.result);q.onerror=()=>reject(q.error);});}
  function write(record){return new Promise((resolve,reject)=>{const t=db.transaction(STORE,'readwrite');t.objectStore(STORE).put(record);t.oncomplete=resolve;t.onabort=()=>reject(Error('LOCAL_STORAGE'));});}
@@ -35,6 +35,8 @@ function create({db,build,readState,version,onChange=()=>{}}){
  const task=queueWork.then(()=>enqueueNow(backup,kind));queueWork=task.catch(()=>{});return task;
  }
  async function enqueueNow(backup,kind){
+  if(pausedCourses.has(backup.course.id))return false;
+  if(kind==='automatic'&&!backup.entries.length)return false;
   const c=config()||{deviceId:'unpaired'};
   backup={...backup,backupKind:kind};
   const contentHash=await hashContent(backup);
@@ -48,7 +50,7 @@ function create({db,build,readState,version,onChange=()=>{}}){
   localError=false;await changed();void flush();return true;
  }
  async function capture(state,kind='automatic',courseIds=state.courses.map(x=>x.id)){
-  try{for(const cid of courseIds)await enqueue(build(state,cid,version,state.profileName||''),kind);}catch{localError=true;await changed();}
+  try{for(const cid of courseIds){if(kind==='automatic'&&!state.entries.some(x=>x.courseId===cid))continue;await enqueue(build(state,cid,version,state.profileName||''),kind);}}catch{localError=true;await changed();}
  }
  // R2 alone prunes NAS-confirmed history. An upload receipt is NOT a NAS receipt.
  async function prune(){}
@@ -57,6 +59,7 @@ function create({db,build,readState,version,onChange=()=>{}}){
   running=(async()=>{
    const c=config();if(!c||navigator.onLine===false)return;
    for(const row of (await all()).filter(x=>x.online&&x.ownerDevice===c.deviceId&&x.status!=='uploaded')){
+    if(pausedCourses.has(row.courseId)||row.data.backupKind==='automatic'&&!row.data.entries.length)continue;
     if(!force&&row.lastAttempt&&Date.now()-Date.parse(row.lastAttempt)<60000)continue;
     row.lastAttempt=new Date().toISOString();row.retryCount++;await write(row);
     try{
@@ -69,8 +72,29 @@ function create({db,build,readState,version,onChange=()=>{}}){
    await prune();
   })().catch(()=>{localError=true;}).finally(async()=>{running=null;await changed();if(flushRequested){flushRequested=false;void flush();}});return running;
  }
+ async function withCoursePaused(cid,action){
+  pausedCourses.add(cid);
+  try{await queueWork;if(running)await running;return await action(config()?.deviceId||'unpaired');}
+  finally{pausedCourses.delete(cid);await changed();}
+ }
+ async function history(){
+  const c=config();if(!c)return [];
+  const items=[],seen=new Set();let cursor=null;
+  do{const r=await call('/backup/history'+(cursor?'?cursor='+encodeURIComponent(cursor):''),{headers:{Authorization:'Bearer '+c.deviceToken}});
+   if(!r.ok)throw Error('Online-Sicherungen konnten nicht geladen werden.');const data=await r.json();items.push(...data.items);cursor=data.cursor;
+   if(cursor&&seen.has(cursor))throw Error('Ungültige Seitennavigation.');if(cursor)seen.add(cursor);
+  }while(cursor);
+  return items.sort((a,b)=>b.exportedAt.localeCompare(a.exportedAt)||b.backupId.localeCompare(a.backupId));
+ }
+ async function download(item){
+  const c=config();if(!c)throw Error('Online-Sicherung nicht eingerichtet.');
+  const r=await call('/backup/restore/'+encodeURIComponent(item.backupId),{headers:{Authorization:'Bearer '+c.deviceToken}});
+  if(!r.ok)throw Error('Online-Sicherung konnte nicht geladen werden.');
+  const bytes=new Uint8Array(await r.arrayBuffer());if(bytes.length!==item.size||await sha256(bytes)!==item.sha256)throw Error('Integritätsprüfung der Sicherung fehlgeschlagen.');
+  return new File([bytes],'online-backup.json',{type:'application/json'});
+ }
  async function backupNow(cid){await capture(await readState(),'manual',[cid]);void flush(true);}
- return {pair,capture,enqueue,flush,status,changed,backupNow,configured:()=>!!config()};
+ return {pair,capture,enqueue,flush,status,changed,backupNow,withCoursePaused,history,download,configured:()=>!!config()};
 }
 root.OnlineBackup={create,sha256,ENDPOINT};
 })(globalThis);

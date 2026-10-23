@@ -694,3 +694,5 @@ body{padding-top:12px}
 /* Automatic course backups: two primary tools, destructive action below. */
 #dataReset { grid-column: 1 / -1; }
 #pairCode { min-height:44px; max-width:100%; box-sizing:border-box; }
+
+#onlineStatus{white-space:pre-line;margin:12px 0}#snapshotList>div,#onlineList>div{padding:10px 0;border-bottom:1px solid #ddd}#deleteCourseSelect{max-width:100%}

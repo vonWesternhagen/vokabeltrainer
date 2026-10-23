@@ -1,4 +1,4 @@
-const { test, expect, course, entry, openApp, importCourse, snapshot, seedProgress, restore } = require('./helpers');
+const { test, expect, course, entry, openApp, importCourse, snapshot, seedProgress, restore,courseBackupFixture,localSnapshotFixture } = require('./helpers');
 
 // Route interception must cover all app requests, without service-worker bypass.
 test.use({ serviceWorkers: 'block' });
@@ -25,22 +25,16 @@ async function editMeaning(page, value) {
 test('File export, IndexedDB backup, both restores and emergency reset remain local without GitHub dialogs', async ({ page, context }) => {
   await openApp(page); await importCourse(page, course([entry('local')], 'local-course', 'Lokaler Kurs'));
   await seedProgress(page, [{ id: 'local', attempts: 5, correct: 4 }]);
-  await page.click('#tabData'); await page.locator('#advancedBackup').evaluate(e=>e.open=true);await page.fill('#profileName', 'Testname'); await page.locator('#profileName').blur();
+  await page.click('#tabData'); await page.fill('#profileName', 'Testname'); await page.locator('#profileName').blur();
   await page.waitForLoadState('networkidle');
   const requests = [], dialogs = [];
   await context.route('**/*', route => { requests.push({ url: route.request().url(), method: route.request().method() }); return route.abort(); });
   page.on('dialog', dialog => dialogs.push(dialog.message()));
   const baseline = await snapshot(page);
-  const download = page.waitForEvent('download');
-  await page.locator('#advancedBackup').evaluate(e=>e.open=true);await page.click('#saveCourseBackup');
-  const file = await download, stream = await file.createReadStream(), chunks = [];
-  for await (const chunk of stream) chunks.push(chunk);
-  const backup = JSON.parse(Buffer.concat(chunks).toString('utf8'));
-  expect(backup.backupType).toBe('course-backup'); expect(backup.entries).toEqual(baseline.vocab);
-  expect(backup.progress).toEqual(baseline.progress); expect(file.suggestedFilename()).toMatch(/\.json$/);
-  await page.getByRole('button', { name: 'Lokales Backup erstellen', exact: true }).click();
-  await expect(page.locator('#backupResult')).toHaveText('Lokales Backup auf diesem Gerät erstellt.');
-  const local = (await snapshots(page)).filter(x => x.reason === 'manual'); expect(local).toHaveLength(1);
+  const backup=await courseBackupFixture(page);
+  expect(backup.backupType).toBe('course-backup');expect(backup.entries).toEqual(baseline.vocab);expect(backup.progress).toEqual(baseline.progress);
+  await localSnapshotFixture(page);
+  const local=(await snapshots(page)).filter(x=>x.reason==='manual');expect(local).toHaveLength(1);
   expect(local[0].data.entries).toEqual(baseline.vocab); expect(local[0].data.progress).toEqual(baseline.progress);
   expect(dialogs).toEqual([]);
   await editMeaning(page, 'intern verändert'); await page.click('#tabData');

@@ -1,6 +1,6 @@
 {
   "name": "vokabeltrainer",
-  "version": "4.8.12",
+  "version": "4.8.16",
   "private": true,
   "description": "Browserbasierter Vokabeltrainer \u2013 Entwicklungs- und Regressionstests",
   "scripts": {

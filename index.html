@@ -7,8 +7,8 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Vokabeltrainer">
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="stylesheet" href="styles.css?v=4.8.12">
-  <title>Vokabeltrainer – Version 4.8.12</title>
+  <link rel="stylesheet" href="styles.css?v=4.8.16">
+  <title>Vokabeltrainer – Version 4.8.16</title>
 </head>
 <body>
 <main>
@@ -18,7 +18,7 @@
       <p class="sub">Schritt für Schritt sicherer werden · mit deinem eigenen Lerntempo</p>
       <p class="header-note">Wähle deinen Lernweg, übe gezielt und sieh sofort, was schon sicher sitzt.</p>
     </div>
-    <div class="header-badges"><span class="course-badge" id="activeCourseBadge">Noch kein Kurs</span><span class="version">v4.8.12</span></div>
+    <div class="header-badges"><span class="course-badge" id="activeCourseBadge">Noch kein Kurs</span><span class="version">v4.8.16</span></div>
   </header>
 
   <div id="appStatus" class="status">JavaScript startet …</div>
@@ -316,59 +316,45 @@
 
     <section class="card data-tile" id="dataRestore">
       <h2>Sicherung wiederherstellen</h2>
+      <div id="onlineStatus" role="status">Automatische Online-Sicherung noch nicht eingerichtet.</div>
+      <div id="onlineSetup">
+        <label>Vorname <input id="profileName" type="text" autocomplete="given-name"></label>
+        <label>Einmalcode <input id="pairCode" type="password" autocomplete="off" spellcheck="false"></label>
+        <button id="pairDevice" type="button">Online-Sicherung einrichten</button>
+      </div>
       <p class="small">Eine Kurssicherung stellt nur den enthaltenen Kurs wieder her. Bereits vorhandene andere Kurse bleiben erhalten. Ältere vollständige Backups werden weiterhin unterstützt.</p>
       <div class="buttons">
         <label class="fileButton" for="backupRestoreFile">Sicherung wiederherstellen</label>
         <input id="backupRestoreFile" type="file" accept=".json,application/json">
       </div>
 
-      <details open>
-        <summary>Online-Sicherung</summary>
-        <p id="onlineStatus" role="status">Online-Sicherung nicht eingerichtet.</p>
-        <div id="onlineSetup">
-          <label>Einmalcode <input id="pairCode" type="password" autocomplete="off" spellcheck="false"></label>
-          <button id="pairDevice" type="button">Online-Sicherung einrichten</button>
-        </div>
-        <p class="small">Bei fehlendem Internet bleiben vorgemerkte Sicherungen auf dem Gerät und werden später übertragen. Der eingerichtete Windows-Synchronisierer übernimmt sie später auf das NAS.</p>
-      </details>
       <div id="backupResult" class="small" role="status"></div>
-      <details id="advancedBackup">
-        <summary>Erweiterte Funktionen</summary>
-      <label>Vorname
-        <input id="profileName" type="text" autocomplete="given-name">
-      </label>
-
-      <div class="plan-box">
-        <h3>Diesen Kurs sichern</h3>
-        <p class="small">Aktueller Kurs: <strong id="backupActiveCourseName">Noch kein Kurs</strong></p>
-        <button id="saveCourseBackup" type="button">Diesen Kurs sichern</button>
-        <p class="small">Der Kurs wird als eigene JSON-Datei auf diesem Gerät gespeichert. Ist die Online-Sicherung eingerichtet, wird dieselbe Kurssicherung zusätzlich online gesichert und später auf das NAS übertragen.</p>
-      </div>
-
-      <div class="plan-box">
-        <h3>Alle Kurse sichern</h3>
-        <p class="small">Jeder vorhandene Kurs wird einzeln vollständig gesichert.</p>
-        <button id="saveAllCourses" type="button">Alle Kurse sichern</button>
-      </div>
-
-
-
-      </details>
-
-      <details open>
-        <summary>Lokale Sicherungen auf diesem Gerät</summary>
-        <button id="createLocalBackup" type="button">Lokales Backup erstellen</button>
-        <p class="small">Interne Sicherungen bleiben in dieser PWA auf diesem Gerät. Automatische Sicherungen vor Import, Wiederherstellung, Kursersetzung, Reset und Migration werden ebenfalls hier gespeichert.</p>
+      <details id="localBackups">
+        <summary>Lokale Sicherungen auf diesem iPad</summary>
         <div id="snapshotList"></div>
+        <button id="moreSnapshots" type="button" hidden>Alle anzeigen</button>
+      </details>
+      <details id="onlineBackups">
+        <summary>Online-Sicherungen</summary>
+        <p id="onlineListStatus" role="status"></p>
+        <div id="onlineList"></div>
+        <button id="moreOnline" type="button" hidden>Alle anzeigen</button>
       </details>
 
     </section>
 
     <section class="card data-tile danger-zone" id="dataReset">
-      <h2>Alles zurücksetzen</h2>
-      <p class="small">Entfernt die lokalen Kurs- und Lerndaten dieses Geräts. Vorher wird eine interne Notfallsicherung angelegt. Ausstehende Online-Sicherungen und die Geräte-Paarung bleiben erhalten.</p>
-      <div class="buttons">
-        <button type="button" id="reset" class="danger">Alles zurücksetzen</button>
+      <h2>Kurse und Daten löschen</h2>
+      <div class="plan-box">
+        <h3>Einzelnen Kurs löschen</h3>
+        <label>Kurs <select id="deleteCourseSelect"></select></label>
+        <p>Dieser Kurs wird nur auf diesem Gerät gelöscht. Historische Online-/NAS-Sicherungen bleiben erhalten.</p>
+        <button type="button" id="deleteCourse" class="danger">Gewählten Kurs auf diesem Gerät löschen</button>
+      </div>
+      <div class="plan-box">
+        <h3>Alle Daten löschen</h3>
+        <p class="small">Vorher wird eine interne Notfallsicherung angelegt. Ausstehende Online-Sicherungen und die Geräte-Paarung bleiben erhalten.</p>
+        <button type="button" id="reset" class="danger">Alle Daten auf diesem Gerät löschen</button>
       </div>
     </section>
   </section>
@@ -410,8 +396,8 @@
     </div>
 
 </main>
-<script src="data-core.js?v=4.8.12"></script>
-<script src="online-backup.js?v=4.8.12"></script>
-<script src="app.js?v=4.8.12"></script>
+<script src="data-core.js?v=4.8.16"></script>
+<script src="online-backup.js?v=4.8.16"></script>
+<script src="app.js?v=4.8.16"></script>
 </body>
 </html>

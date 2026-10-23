@@ -1,7 +1,7 @@
 (function(){
 "use strict";
 
-var APP_VERSION="4.8.12";
+var APP_VERSION="4.8.16";
 var DB_NAME="VokabeltrainerTest";
 var DB_VERSION=3;
 var S_HISTORY="history",S_SNAPSHOTS="snapshots",historyWork=Promise.resolve();
@@ -746,7 +746,7 @@ async function renderHome(){
   var days=Math.max(0,Math.ceil((new Date(e.date+"T12:00:00")-new Date())/86400000));
   $("homeExamText").textContent="Klassenarbeit in "+days+" Tag"+(days===1?"":"en")+" · Lernpensum planen"
  }else $("homeExamText").textContent="Klassenarbeit planen";
- $("appStatus").textContent="✓ Version 4.8.12 läuft · "+(cid?courseName(cid)+" · "+all.length+" Vokabeln":"noch keine Vokabeln importiert")
+ $("appStatus").textContent="✓ Version 4.8.16 läuft · "+(cid?courseName(cid)+" · "+all.length+" Vokabeln":"noch keine Vokabeln importiert")
 }
 async function switchActiveCourse(id){
  viewRevision++;cancelSession();setActiveCourse(id);
@@ -1069,20 +1069,61 @@ async function storeLocalSnapshot(reason,emergency){
  if(cloud&&reason==="manual")await cloud.capture(state,"manual");
  return record;
 }
-async function renderSnapshots(){
- updateCourseLabels();
- if(cloud){void cloud.changed();void cloud.flush()}
- $("profileName").value=localStorage.getItem("vokabeltrainer.profile")||"";
- var records=await reqP(os(S_SNAPSHOTS).getAll());records.sort(function(a,b){return b.createdAt.localeCompare(a.createdAt)});
- var box=$("snapshotList");box.replaceChildren();
- records.forEach(function(r){var row=document.createElement("div"),b=document.createElement("button"),exportBtn=document.createElement("button"),text=document.createElement("span");text.textContent=r.label+" · "+r.reason+" · "+r.data.entries.length+" Vokabeln ";b.textContent="Wiederherstellen";exportBtn.textContent="Als Datei sichern";
- b.onclick=function(){dataAction(async function(){await restoreBackupFile(new File([JSON.stringify(r.data)],"snapshot.json",{type:"application/json"}));await renderSnapshots()})};
- exportBtn.onclick=function(){dataAction(async function(){
-  if(r.data.backupType==="course-backup")downloadJson(r.data,D.filename(r.label,""));
-  else await downloadCourseFiles((r.data.courses||[]).map(function(c){return D.buildCourseBackup(r.data,c.id,APP_VERSION,r.data.profileName||"")}));
- })};var advanced=document.createElement("details"),summary=document.createElement("summary");summary.textContent="Erweiterte Funktionen";advanced.append(summary,exportBtn);row.append(text,b,advanced);box.appendChild(row)});
- if(!records.length)box.textContent="Noch keine lokalen Sicherungen vorhanden.";
+var allLocalSnapshots=false,allOnlineSnapshots=false,onlineListRevision=0;
+function backupRow(label,action){
+ var row=document.createElement("div"),text=document.createElement("p"),button=document.createElement("button");
+ text.textContent=label;button.type="button";button.textContent="Wiederherstellen";
+ button.onclick=function(){dataAction(action)};row.append(text,button);return row;
 }
+async function renderSnapshots(){
+ updateCourseLabels();if(cloud){void cloud.changed();void cloud.flush()}
+ if(document.activeElement!==$("profileName"))$("profileName").value=localStorage.getItem("vokabeltrainer.profile")||"";
+ var records=await reqP(os(S_SNAPSHOTS).getAll());records=records.filter(function(r){return !r.online}).sort(function(a,b){return b.createdAt.localeCompare(a.createdAt)||b.id.localeCompare(a.id)});
+ var box=$("snapshotList");box.replaceChildren();
+ records.slice(0,allLocalSnapshots?records.length:5).forEach(function(r){
+  box.append(backupRow(new Date(r.createdAt).toLocaleString()+" · "+r.label+" · "+r.data.entries.length+" Vokabeln · "+r.reason,async function(){await restoreBackupFile(new File([JSON.stringify(r.data)],"snapshot.json",{type:"application/json"}));await renderSnapshots()}));
+ });
+ if(!records.length)box.textContent="Noch keine lokalen Sicherungen vorhanden.";
+ $("moreSnapshots").hidden=records.length<=5;$("moreSnapshots").textContent=allLocalSnapshots?"Weniger anzeigen":"Alle anzeigen";
+ var select=$("deleteCourseSelect"),chosen=select.value;select.replaceChildren();
+ courses.forEach(function(c){var o=document.createElement("option");o.value=c.id;o.textContent=courseName(c.id)+" · "+vocab.filter(function(v){return v.courseId===c.id}).length+" Vokabeln";select.append(o)});
+ if(courses.some(function(c){return c.id===chosen}))select.value=chosen;else if(activeCourseId())select.value=activeCourseId();
+ $("deleteCourse").disabled=!courses.length;
+ if($("onlineBackups").open)void renderOnlineBackups();
+}
+async function renderOnlineBackups(){
+ var revision=++onlineListRevision,box=$("onlineList");box.replaceChildren();$("moreOnline").hidden=true;
+ if(!cloud||!cloud.configured()){$("onlineListStatus").textContent="Bitte zuerst die Online-Sicherung einrichten.";return}
+ $("onlineListStatus").textContent="Online-Sicherungen werden geladen …";
+ try{var records=await cloud.history();if(revision!==onlineListRevision)return;
+  records.slice(0,allOnlineSnapshots?records.length:5).forEach(function(r){
+   box.append(backupRow(new Date(r.exportedAt).toLocaleString()+" · "+r.courseName+" · "+(r.backupKind==="automatic"?"Automatische Sicherung":"Manuelle Sicherung")+(r.vocabularyCount==null?"":" · "+r.vocabularyCount+" Vokabeln")+" · "+(r.status==="nas-confirmed"?"Auf NAS bestätigt":"Online gesichert"),async function(){await restoreBackupFile(await cloud.download(r));await renderSnapshots()}));
+  });
+  $("onlineListStatus").textContent=records.length?"":"Keine Online-Sicherungen vorhanden.";$("moreOnline").hidden=records.length<=5;$("moreOnline").textContent=allOnlineSnapshots?"Weniger anzeigen":"Alle anzeigen";
+ }catch(e){if(revision===onlineListRevision)$("onlineListStatus").textContent="Online-Sicherungen konnten nicht geladen werden. Bitte Verbindung prüfen und den Bereich erneut öffnen."}
+}
+async function deleteLocalCourse(){
+ var cid=$("deleteCourseSelect").value;if(!courses.some(function(c){return c.id===cid}))return;
+ if(!confirm('Kurs "'+courseName(cid)+'" nur auf diesem Gerät löschen? Historische Online-/NAS-Sicherungen bleiben erhalten.'))return;
+ if(!confirm("Wirklich diesen Kurs und seine lokalen Lernstände löschen? Noch nicht hochgeladene Sicherungen dieses Kurses werden verworfen."))return;
+ cancelSession();await answerWork;await historyWork;
+ await cloud.withCoursePaused(cid,async function(owner){
+  await storeLocalSnapshot("before-course-delete",true);
+  var state=await readState(),ids=new Set(state.entries.filter(function(v){return v.courseId===cid}).map(function(v){return v.id})),snaps=await reqP(os(S_SNAPSHOTS).getAll());
+  var remove=snaps.filter(function(r){return r.courseId===cid&&(r.online?r.ownerDevice===owner&&["pending","pendingUpload"].includes(r.status)&&!r.uploadedAt:!r.emergency&&r.data.backupType==="course-backup")});
+  await new Promise(function(resolve,reject){var tx=db.transaction([S_COURSES,S_VOCAB,S_PROGRESS,S_HISTORY,S_EXAMS,S_SNAPSHOTS],"readwrite");
+   tx.oncomplete=resolve;tx.onabort=function(){reject(Error("Kurs konnte nicht gelöscht werden. Der bisherige Zustand bleibt erhalten."))};
+   tx.objectStore(S_COURSES).delete(cid);ids.forEach(function(id){tx.objectStore(S_VOCAB).delete(id);tx.objectStore(S_PROGRESS).delete(id)});
+   state.history.filter(function(h){return h.courseId===cid}).forEach(function(h){tx.objectStore(S_HISTORY).delete(h.id)});
+   state.exams.filter(function(e){return(e.courseId||e.id)===cid}).forEach(function(e){tx.objectStore(S_EXAMS).delete(e.id)});
+   remove.forEach(function(r){tx.objectStore(S_SNAPSHOTS).delete(r.id)});
+  });
+ });
+ var previous=activeCourseId();await reload();if(previous===cid)setActiveCourse(usedCourseIds()[0]||courses[0]?.id||null);
+ populateCourseSelector();populateAllSelectors();saveSettings();await renderHome();await renderOverview();await renderExamSummary();await renderSnapshots();
+ $("backupResult").textContent="Kurs auf diesem Gerät gelöscht. Historische Online-/NAS-Sicherungen bleiben erhalten.";
+}
+
 function accumulateTime(owner){var now=performance.now();if(owner.visibleTick!=null)owner.durationMs+=(now-owner.visibleTick);owner.visibleTick=document.hidden?null:now;}
 async function captureCourses(ids){if(cloud)await cloud.capture(await readState(),"automatic",ids)}
 function finishHistory(owner,completed){
@@ -1093,36 +1134,6 @@ function finishHistory(owner,completed){
 document.addEventListener("visibilitychange",function(){if(session.active)accumulateTime(session)});
 window.addEventListener("pagehide",function(){if(session.active)finishHistory(session,false)});
 async function courseExams(cid){var all=await reqP(os(S_EXAMS).getAll());return all.filter(function(e){return(e.courseId||e.id)===cid}).sort(function(a,b){return a.date.localeCompare(b.date)})}
-function backupProfileName(){
- var name=(localStorage.getItem("vokabeltrainer.profile")||"").trim();
- if(!name){name=prompt("Vorname für die Kurssicherung (kein Nachname erforderlich):");if(name===null)return null;name=name.trim();if(!name)return null;localStorage.setItem("vokabeltrainer.profile",name);$("profileName").value=name}
- return name
-}
-async function saveCourseBackups(courseIds){
- var name=backupProfileName();if(!name)return;
- var state=await readState(),available=new Set(state.courses.map(function(c){return c.id})),ids=courseIds.filter(function(id){return available.has(id)});
- if(!ids.length)throw Error("Es ist noch kein Kurs mit Vokabeln vorhanden.");
- var backups=ids.map(function(cid){return D.buildCourseBackup(state,cid,APP_VERSION,name)});
- await downloadCourseFiles(backups,name);
- var queued=0,onlineFailed=false;
- if(cloud){
-  for(var i=0;i<backups.length;i++){
-   try{if(await cloud.enqueue(backups[i],"manual"))queued++}catch(e){onlineFailed=true}
-  }
-  if(queued){await cloud.flush(true);await cloud.flush(true)}
- }
- var count=backups.length,localText=count===1?"1 Kurs lokal als Datei gesichert.":count+" Kurse lokal jeweils als eigene Datei gesichert.";
- var onlineText=queued===count?" Zusätzlich für die Online-/NAS-Sicherung vorgemerkt.":queued?" "+queued+" von "+count+" Kursen für die Online-/NAS-Sicherung vorgemerkt.":" Online-Sicherung ist auf diesem Gerät nicht eingerichtet.";
- if(onlineFailed)onlineText+=" Mindestens eine Online-Vormerkung ist fehlgeschlagen und kann später erneut versucht werden.";
- $("backupResult").textContent=localText+onlineText
-}
-async function manualCourseBackup(){
- var cid=activeCourseId();if(!cid)throw Error("Bitte zuerst einen Kurs auswählen.");
- await saveCourseBackups([cid])
-}
-async function manualAllCourseBackups(){
- await saveCourseBackups(courses.map(function(c){return c.id}))
-}
 async function prepareRestore(input){
  var data=D.clone(input);
  if(data.backupType==="course-backup"){
@@ -1318,7 +1329,7 @@ $("clearExamScopes").onclick=function(){examFormRevision++;[].slice.call($("exam
 
 function renderOnlineStatus(state){
  $("onlineSetup").hidden=state.configured;
- $("onlineStatus").textContent=(state.configured?"Automatische Sicherung aktiv.":"Automatische Online-Sicherung noch nicht eingerichtet.")+(state.pending?" "+state.pending+(navigator.onLine===false?" Sicherungen warten auf Internetverbindung.":" Sicherungen warten auf Upload."):"")+(state.lastUploaded?" Zuletzt online gesichert: "+new Date(state.lastUploaded).toLocaleString():"")+(state.localError?" Die zusätzliche Sicherung konnte noch nicht vorgemerkt werden. Bitte eine Datei sichern.":"");
+ $("onlineStatus").textContent=(state.configured?"Automatische Sicherung aktiv.":"Automatische Online-Sicherung noch nicht eingerichtet.")+("\n"+(state.pending||0)+(navigator.onLine===false?" Sicherungen warten auf Internetverbindung.":" Sicherungen warten auf Upload."))+(state.lastUploaded?"\nZuletzt online gesichert: "+new Date(state.lastUploaded).toLocaleString():"")+(state.localError?" Die zusätzliche Sicherung konnte noch nicht vorgemerkt werden. Bitte eine Datei sichern.":"");
 }
 $("pairDevice").onclick=async function(){
  var code=$("pairCode").value;$("pairCode").value="";$("pairDevice").disabled=true;
@@ -1330,9 +1341,10 @@ setInterval(function(){if(cloud)void cloud.flush()},60000);
 
 $("exportCourse").onclick=function(){runAction(exportCurrentCourse)};
 $("reset").onclick=function(){dataAction(resetAll)};
-$("saveCourseBackup").onclick=function(){dataAction(manualCourseBackup)};
-$("saveAllCourses").onclick=function(){dataAction(manualAllCourseBackups)};
-$("createLocalBackup").onclick=function(){dataAction(async function(){await storeLocalSnapshot("manual");await renderSnapshots();$("backupResult").textContent="Lokales Backup auf diesem Gerät erstellt."})};
+$("deleteCourse").onclick=function(){dataAction(deleteLocalCourse)};
+$("moreSnapshots").onclick=function(){allLocalSnapshots=!allLocalSnapshots;runAction(renderSnapshots)};
+$("moreOnline").onclick=function(){allOnlineSnapshots=!allOnlineSnapshots;void renderOnlineBackups()};
+$("onlineBackups").ontoggle=function(){if(this.open)void renderOnlineBackups()};
 $("profileName").onchange=function(){localStorage.setItem("vokabeltrainer.profile",this.value.trim())};
 $("importStrategy").onchange=function(){dataAction(renderImportPreview)};
 $("confirmImport").onclick=function(){dataAction(commitImport)};

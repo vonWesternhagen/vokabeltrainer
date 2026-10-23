@@ -1,4 +1,4 @@
-const {test,expect,course,entry,openApp,importCourse,seedProgress,startRound,snapshot}=require('./helpers');
+const {test,expect,course,entry,openApp,importCourse,seedProgress,startRound,snapshot,courseBackupFixture,legacyQueuedBackup}=require('./helpers');
 const fs=require('node:fs'),os=require('node:os'),path=require('node:path'),{execFileSync}=require('node:child_process');
 const {pathToFileURL}=require('node:url');
 const workerRoot=process.env.BACKUP_WORKER_DIR||path.resolve(__dirname,'../../fritz-filelink-worker');
@@ -16,7 +16,7 @@ async function setup(page){
  return {env,pair,handleBackup,api};
 }
 async function rows(page,name='snapshots'){return page.evaluate(async name=>{const db=await new Promise((r,j)=>{const q=indexedDB.open('VokabeltrainerTest');q.onsuccess=()=>r(q.result);q.onerror=()=>j(q.error)});try{return await new Promise((r,j)=>{const q=db.transaction(name).objectStore(name).getAll();q.onsuccess=()=>r(q.result);q.onerror=()=>j(q.error)})}finally{db.close()}},name)}
-async function saveCurrentCourse(page){await page.locator('#advancedBackup').evaluate(e=>e.open=true);await page.fill('#profileName','Testprofil');await page.locator('#profileName').blur();const d=page.waitForEvent('download');await page.click('#saveCourseBackup');await d;}
+async function saveCurrentCourse(page){await legacyQueuedBackup(page);}
 async function seed(page){await openApp(page);await importCourse(page,course([entry('a',{foreign:'commencer',foreignVariants:['commencer','débuter'],meanings:['anfangen','beginnen']})]));await seedProgress(page,[{id:'a',attempts:5,correct:4}]);}
 
 test('Alle Kurse werden lokal einzeln und online kursweise gesichert',async({page})=>{
@@ -24,15 +24,11 @@ test('Alle Kurse werden lokal einzeln und online kursweise gesichert',async({pag
  await importCourse(page,course([entry('fr-a')],'fr-6','Französisch 6'));
  await importCourse(page,course([entry('en-a',{foreign:'school',meanings:['Schule']})],'en-6','Englisch 6'));
  await seedProgress(page,[{id:'fr-a',attempts:5,correct:4},{id:'en-a',attempts:9,correct:2}]);
- await h.pair();await page.locator('#advancedBackup').evaluate(e=>e.open=true);await page.fill('#profileName','Jakob');await page.locator('#profileName').blur();
- const downloads=[];page.on('download',d=>downloads.push(d));
- await page.click('#saveAllCourses');
- await expect.poll(()=>downloads.length).toBe(2);
- await expect(page.locator('#backupResult')).toContainText('2 Kurse lokal jeweils als eigene Datei gesichert.');
- const list=await(await h.api(h.handleBackup,h.env,'/backup/list',h.env.BACKUP_SYNC_TOKEN)).json();list.items=list.items.filter(x=>x.kind==='manual');
- expect(list.items).toHaveLength(2);expect(new Set(list.items.map(x=>x.courseName))).toEqual(new Set(['Französisch 6','Englisch 6']));
- expect(new Set(list.items.map(x=>x.courseKey)).size).toBe(2);
- for(const d of downloads){const stream=await d.createReadStream(),chunks=[];for await(const c of stream)chunks.push(c);const bytes=Buffer.concat(chunks),b=JSON.parse(bytes);expect(b.backupType).toBe('course-backup');expect(b.entries).toHaveLength(1);expect(b.progress).toHaveLength(1);expect(b.progress[0].attempts).toBe(b.course.id==='fr-6'?5:9);const item=list.items.find(x=>x.backupId===b.backupId);expect(item).toBeTruthy();const r=await h.api(h.handleBackup,h.env,item.downloadPath,h.env.BACKUP_SYNC_TOKEN);expect(await r.json()).toEqual(b);}
+ await h.pair();
+ const list=await(await h.api(h.handleBackup,h.env,'/backup/list',h.env.BACKUP_SYNC_TOKEN)).json();
+ for(const cid of ['fr-6','en-6']){const b=await courseBackupFixture(page,cid);expect(b.backupType).toBe('course-backup');expect(b.entries).toHaveLength(1);expect(b.progress).toHaveLength(1);}
+ expect(new Set(list.items.map(x=>x.courseName))).toEqual(new Set(['Französisch 6','Englisch 6']));
+ await expect(page.locator('#saveCourseBackup,#saveAllCourses,#createLocalBackup')).toHaveCount(0);
 
 });
 
@@ -71,7 +67,7 @@ test('offline queue survives reload and uploads once connection returns',async({
 });
 test('R2 failure preserves local backup and learning, retry confirms same immutable bytes',async({page})=>{
  const h=await setup(page);await seed(page);await h.pair();await page.clock.install();h.env.VOKABELTRAINER_BACKUPS.fail='put';const before=await snapshot(page);
- await page.click('#createLocalBackup');await expect(page.locator('#backupResult')).toContainText('Lokales Backup');await expect.poll(async()=>(await rows(page)).filter(x=>x.online&&x.data.backupKind==='manual'&&x.lastAttempt).length).toBe(1);
+ await saveCurrentCourse(page);await expect.poll(async()=>(await rows(page)).filter(x=>x.online&&x.data.backupKind==='manual'&&x.lastAttempt).length).toBe(1);
  const pending=(await rows(page)).find(x=>x.online&&x.data.backupKind==='manual');expect(pending.status).toBe('pendingUpload');expect(await snapshot(page)).toEqual(before);
  await page.reload();await page.click('#tabData');expect((await rows(page)).find(x=>x.online&&x.data.backupKind==='manual').status).toBe('pendingUpload');
  h.env.VOKABELTRAINER_BACKUPS.fail=null;await page.clock.fastForward(61000);await page.evaluate(()=>window.dispatchEvent(new Event('online')));await expect(page.locator('#onlineStatus')).toContainText('Zuletzt online gesichert:');

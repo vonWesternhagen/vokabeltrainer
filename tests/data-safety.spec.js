@@ -1,9 +1,10 @@
+const {courseBackupFixture}=require('./helpers');
 const { holdRead, releaseRead } = require('./interaction-helpers');
 const { test, expect, course, entry, openApp, importCourse, snapshot, seedProgress, startRound, exportBackup, restore }=require('./helpers');
 async function stores(page){return page.evaluate(async()=>{const db=await new Promise((r,j)=>{const q=indexedDB.open('VokabeltrainerTest');q.onsuccess=()=>r(q.result);q.onerror=()=>j(q.error)});try{const out={};for(const n of ['vocab','progress','courses','exams','history','snapshots'])out[n]=await new Promise((r,j)=>{const q=db.transaction(n).objectStore(n).getAll();q.onsuccess=()=>r(q.result);q.onerror=()=>j(q.error)});return out}finally{db.close()}})}
 async function preview(page,data,id='currentImportFile'){await page.click('#tabData');await page.locator('#'+id).setInputFiles({name:'test.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(data))});await expect(page.locator('#importPreview')).toBeVisible();await expect(page.locator('#dataView')).not.toHaveAttribute('aria-busy','true');}
 async function commit(page){await page.click('#confirmImport');await expect(page.locator('#importPreview')).toBeHidden();await expect(page.locator('#dataView')).not.toHaveAttribute('aria-busy','true');}
-async function downloadCourse(page){await page.click('#tabData');await page.locator('#advancedBackup').evaluate(e=>e.open=true);await page.fill('#profileName','Jakob');await page.locator('#profileName').blur();const pending=page.waitForEvent('download');await page.click('#saveCourseBackup');const d=await pending,stream=await d.createReadStream(),chunks=[];for await(const c of stream)chunks.push(c);return {name:d.suggestedFilename(),data:JSON.parse(Buffer.concat(chunks).toString())};}
+async function downloadCourse(page){await page.evaluate(()=>localStorage.setItem('vokabeltrainer.profile','Jakob'));const data=await courseBackupFixture(page);return {name:require('../data-core').filename(data.course.label,'Jakob'),data};}
 
 test('Dashboard categories, navigation and overview editor preserve progress on save/cancel',async({page,hasTouch})=>{
  await openApp(page);const es=Array.from({length:7},(_,i)=>entry('v'+i));await importCourse(page,course(es));
@@ -65,7 +66,7 @@ test('New-course collision copies or explicitly replaces, with backup',async({pa
 });
 
 test('Reset keeps emergency backup; internal restore recovers every course and learning record',async({page})=>{
- await openApp(page);await importCourse(page,course([entry('a')]));await seedProgress(page,[{id:'a',attempts:5,correct:4}]);const before=await snapshot(page);await page.click('#tabData');await page.click('#reset');await expect(page.locator('#homeTotal')).toHaveText('0');await page.click('#tabData');const row=page.locator('#snapshotList>div').filter({hasText:'Sicherung vor Zurücksetzen'});await expect(row).toHaveCount(1);await row.getByRole('button',{name:'Wiederherstellen',exact:true}).click();await expect(page.locator('#homeTotal')).toHaveText('1');const after=await snapshot(page);for(const store of ['vocab','progress','courses','exams'])expect(after[store]).toEqual(before[store]);
+ await openApp(page);await importCourse(page,course([entry('a')]));await seedProgress(page,[{id:'a',attempts:5,correct:4}]);const before=await snapshot(page);await page.click('#tabData');await page.click('#reset');await expect(page.locator('#homeTotal')).toHaveText('0');await page.click('#tabData');await page.locator('#localBackups').evaluate(e=>e.open=true);const row=page.locator('#snapshotList>div').filter({hasText:'Sicherung vor Zurücksetzen'});await expect(row).toHaveCount(1);await row.getByRole('button',{name:'Wiederherstellen',exact:true}).click();await expect(page.locator('#homeTotal')).toHaveText('1');const after=await snapshot(page);for(const store of ['vocab','progress','courses','exams'])expect(after[store]).toEqual(before[store]);
 });
 
 test('Snapshots retain ten per course and storage failure blocks import',async({page})=>{
@@ -110,7 +111,7 @@ test('Editor autofocus never steals focus from German variants or a closed modal
 
 test('Loading snapshots cannot erase a profile name being typed for course backup',async({page})=>{
  await openApp(page);await importCourse(page,course([entry('a')]));await page.click('#tabVocab');await holdRead(page,'snapshots');await page.click('#tabData');await page.waitForFunction(()=>window.heldRead.waiting);
- await page.locator('#advancedBackup').evaluate(e=>e.open=true);await page.fill('#profileName','Jakob');await releaseRead(page);await expect(page.locator('#profileName')).toHaveValue('Jakob');await page.locator('#profileName').blur();
+ await page.fill('#profileName','Jakob');await releaseRead(page);await expect(page.locator('#profileName')).toHaveValue('Jakob');await page.locator('#profileName').blur();
  expect(await page.evaluate(()=>localStorage.getItem('vokabeltrainer.profile'))).toBe('Jakob');
- const pending=page.waitForEvent('download');await page.click('#saveCourseBackup');expect((await pending).suggestedFilename()).toContain('Jakob');
+ expect((await courseBackupFixture(page)).profileName).toBe('Jakob');
 });

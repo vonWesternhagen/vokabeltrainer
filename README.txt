@@ -1,4 +1,4 @@
-Vokabeltrainer 4.8.12
+Vokabeltrainer 4.8.16
 
 Statische PWA mit lokalem Datenbestand und optionaler Online-Sicherung. index.html über einen HTTP(S)-Server öffnen.
 Kein Bundler und keine Produktionsabhängigkeiten erforderlich.
@@ -8,7 +8,7 @@ Kein Bundler und keine Produktionsabhängigkeiten erforderlich.
 - Französische und deutsche Varianten mit kompatiblem Bestandsdatenmodell.
 - Importvorschau: intelligent ergänzen, zusätzlich einlesen oder Konflikte prüfen.
 - Automatische Kurssicherung nach Änderungen und Lernrunden; lokale Offline-Warteschlange, unveränderte Inhalte werden nicht doppelt gesichert.
-- Datensicherung: Einlesen, Wiederherstellen, Alles zurücksetzen; manueller Export unter Erweiterte Funktionen.
+- Datensicherung: Einlesen, Wiederherstellen, Kurse und Daten löschen. Manuelle Sicherungsbuttons entfallen.
 - Notfallbackup bleibt nach „Alle Daten zurücksetzen“ verfügbar.
 
 Bestehende Kurse, Lernstände und Klassenarbeiten bleiben erhalten.
@@ -16,10 +16,18 @@ Es werden keine Start-/Demo-Vokabeln automatisch eingefügt.
 Online-Übertragung ist erst nach Geräte-Paarung aktiv; vorher wird lokal vorgemerkt.
 R2 erhält 100 NAS-bestätigte automatische Sicherungen pro Kurs und alle noch unbestätigten.
 Windows löscht keine NAS-Historie.
-Lokale Datei- und IndexedDB-Sicherungen funktionieren weiterhin offline.
+Restore vorhandener Dateien und interner IndexedDB-Sicherungen funktioniert weiterhin offline.
 Private R2-Sicherung über den bestehenden Worker; Windows archiviert zum NAS.
 Einrichtung, echter NAS-Einzeltest und Grenzen: sync/README.md.
 Keine Aufgabenplanung vor bestätigtem NAS-Test. GitHub liefert nur die PWA.
 
 Tests, Datenregeln und Grenzen: TESTING.md.
-Nach Veröffentlichung bei Bedarf mit ?v=4.8.12 öffnen.
+Nach Veröffentlichung bei Bedarf mit ?v=4.8.16 öffnen.
+
+Leere Kursdatensätze werden nicht automatisch gesichert. Einzelkurslöschung bleibt gerätelokal.
+Nur eigene noch nicht hochgeladene Queue-Einträge des gelöschten Kurses werden verworfen.
+Historische R2-/NAS-Sicherungen bleiben erhalten; der Windows-Sync bleibt unverändert.
+Lokale und profilgebundene Online-Historie zeigen zunächst fünf Einträge, danach Alle anzeigen.
+Online-Restore prüft Größe und SHA-256 und verwendet die bestehende Backupvalidierung.
+Jakobs vorhandener falscher NAS-Ordner wurde nicht bereinigt: die konkrete Profil-ID ist hier nicht sicher zugeordnet.
+Keine Löschung anhand von Kursname oder Legacy-Kurs-ID.

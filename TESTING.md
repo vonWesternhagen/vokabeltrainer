@@ -1,4 +1,4 @@
-# Vokabeltrainer 4.8.12: Entwicklung und Tests
+# Vokabeltrainer 4.8.16: Entwicklung und Tests
 
 Die Anwendung bleibt eine statische Browser-App ohne Build-Schritt oder
 Produktionsabhängigkeiten. Node.js und Playwright werden nur zum Testen benötigt.
@@ -127,17 +127,17 @@ Tabwechseln keine History-Einträge. Browser-Zurück verlässt deshalb das aktue
 Dokument; intern dienen Tabs und „Beenden“ zur Navigation. Es wird kein Router
 und keine neue persistierte Zustandsstruktur eingeführt.
 
-## Versionierung ab 4.8.12
+## Versionierung ab 4.8.16
 
 Jede Änderung erhält eine neue Versionsnummer; kleine Änderungen erhöhen die Patch-Version.
 Dies gilt für Programm, Verhalten, UI, Tests, technische Implementierung und
-Release-Artefakte (z. B. 4.5.7 → 4.5.8 → 4.8.12). App-/Paketversion, sichtbare
+Release-Artefakte (z. B. 4.5.7 → 4.5.8 → 4.8.16). App-/Paketversion, sichtbare
 Versionsanzeigen, Asset-URLs, Service-Worker-Cache, Testerwartungen und aktuelle
 Dokumentation werden gemeinsam aktualisiert. Daten- und Schemaversionen sind
 davon unabhängig und werden nicht allein wegen eines Releases geändert.
 
 
-## Erweiterung 4.8.12
+## Erweiterung 4.8.16
 
 `data-core.js` enthält browserunabhängige Varianten-, Import- und Backupoperationen.
 Die bisherige Primärform `foreign` und die Liste `meanings` bleiben erhalten;
@@ -185,7 +185,7 @@ Ein verzögertes Lesen der Snapshot-Liste darf die laufende Profileingabe nicht
 überschreiben; der anschließende Kursexport wird in demselben Szenario geprüft.
 
 
-## Lokale Sicherungen 4.8.12
+## Lokale Sicherungen 4.8.16
 
 Die Suche im gesamten versionierten PWA-Code fand keine GitHub-Backup-API,
 Upload-Funktion oder GitHub-Bestätigungsdialoge. GitHub Pages liefert nur die App.
@@ -200,7 +200,7 @@ Browser- oder Betriebssystemdialoge können die Herkunft einer heruntergeladenen
 Datei nennen; diese werden nicht von der PWA gesteuert.
 
 
-## Optionale Online-Sicherung 4.8.12 / Worker 0.2.1
+## Optionale Online-Sicherung 4.8.16 / Worker 0.2.1
 
 IndexedDB bleibt Version 3. Kurssicherung bleibt Schema 1 (zusätzliche optionale
 Backup-ID und Art); Gesamtsicherungen bleiben Schema 7. Die Upload-Warteschlange
@@ -256,7 +256,7 @@ Die direkte öffentliche HTTP-Prüfung ist durch die Netzwerkfreigaben dieser
 Codex-Umgebung eingeschränkt; Cloudflare-Metadaten und Pages-Workflow werden geprüft.
 
 
-## Automatische Kurssicherungen 4.8.12
+## Automatische Kurssicherungen 4.8.16
 
 Datensicherung: Einlesen und Sicherung wiederherstellen nebeneinander, darunter
 Alles zurücksetzen über beide Spalten. Unter 581 CSS-Pixeln einspaltig. Manueller
@@ -300,7 +300,7 @@ Worker-Tests prüfen insbesondere 100/101, zwei Kurse, Pending- und Manual-Schut
 Der Heim-NAS-Zugriff wird nicht erneut ausgeführt; lokale Sync-Roundtrips prüfen
 das unveränderte Dateiformat. Es wird keine Windows-Aufgabe eingerichtet.
 
-4.8.12 korrigiert ausschließlich das Timing des Offline-Regressionstests: Vor
+4.8.16 korrigiert ausschließlich das Timing des Offline-Regressionstests: Vor
 dem Reload wird die erwartete 503-Antwort des Wiederverbindungsversuchs abgewartet.
 Dadurch bricht der Test keinen eigenen laufenden Fetch ab. Der Fehlerwächter
 für unbehandelte JavaScript-/IndexedDB-Fehler bleibt uneingeschränkt aktiv.
@@ -309,3 +309,20 @@ Bericht und im Abschlussbericht festgehalten; keine Dokumentänderung nach dem L
 
 Der ältere Offline-Queue-Test wartet zusätzlich vor dem Reload auf den Status
 `uploaded` des konkreten manuellen Backups statt auf den Status früherer Uploads.
+
+Aktueller Umbau 4.8.16: Kurse ohne Vokabeln werden nicht automatisch erfasst.
+Kurslöschung, Queue-Schutz, lokale fünf/alle-Liste sowie profilgebundene Online-Liste
+und Online-Restore werden in course-management.spec.js in allen sechs Profilen geprüft.
+Historische manuelle Backup-Regressionen verwenden Altbestand-Fixtures, da die zugehörigen
+UI-Aktionen entfernt wurden. Datei-/Format-/Restore-/Offline-/Retry-Abdeckung bleibt erhalten.
+Worker 0.2.3 ergänzt ausschließlich profilgebundene history/restore-Leseendpunkte;
+Pairing, Upload, Sync-Download, ACK und Retention bleiben kompatibel.
+Ein fehlendes unitId in der neuen Restore-Testdatei wurde vor dem Gesamtlauf ergänzt.
+NAS-bestätigte lokale Datensätze werden unabhängig vom uploadedAt-Feld geschützt.
+
+Der Alle-anzeigen-Test wartet auf das abgeschlossene asynchrone Rendering.
+Bereits vorgemerkte leere automatische Alt-Sicherungen werden nicht neu hochgeladen;
+sie bleiben lokal bis zur ausdrücklichen Kurslöschung erhalten.
+
+4.8.16 platziert den Sicherungsstatus direkt unter der Restore-Überschrift.
+Die Layout-Regression prüft diese Reihenfolge explizit in allen Geräteprofilen.
