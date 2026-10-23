@@ -55,7 +55,7 @@ test('Antwortfeld stiehlt anderen Trainer-Controls nicht den Tastaturfokus', asy
 
 test('Jede Kachel und jeder Tab führt zu genau einer bedienbaren Ansicht', async ({ page }) => {
   await prepareCourses(page);
-  const cards = { homeLearn: 'learn', homeDueLearn: 'learn', homePlan: 'plan', homeOverview: 'overview', homeVocab: 'vocab', homeData: 'data' };
+  const cards = { homeLearn: 'learn', homePlan: 'plan', homeOverview: 'overview', homeVocab: 'vocab', homeData: 'data' };
   for (const [id, view] of Object.entries(cards)) {
     await page.click('#tabHome');await page.click(`#${id}`);await assertView(page, view);
     await page.click('#tabLearn');await assertView(page, 'learn');
@@ -143,7 +143,7 @@ test('Leere Datenbank und leerer Kurs geben beim Lernstart Rückmeldung', async 
         const db = await new Promise(resolve => { const r = indexedDB.open('VokabeltrainerTest');r.onsuccess = () => resolve(r.result); });
         await new Promise(resolve => { const tx = db.transaction('courses', 'readwrite');tx.objectStore('courses').put({ id: 'leer', label: 'Leerer Kurs' });tx.oncomplete = resolve; });db.close();
       });
-      await page.reload();await expect(page.locator('#appStatus')).toContainText('Version 4.7.0 läuft');
+      await page.reload();await expect(page.locator('#appStatus')).toContainText('Version 4.8.12 läuft');
     }
     await page.click('#tabLearn');
     for (const mode of ['startNew', 'startWeak']) {
@@ -174,7 +174,7 @@ test('Bereichswechsel verwirft einen nicht mehr passenden Teilbereich', async ({
 
 test('SPA-Tabs erzeugen keine History; Browser-Zurück verlässt das Dokument', async ({ page }) => {
   await page.goto('/?vorherige-seite');await page.goto('/');
-  await expect(page.locator('#appStatus')).toContainText('Version 4.7.0 läuft');
+  await expect(page.locator('#appStatus')).toContainText('Version 4.8.12 läuft');
   const length = await page.evaluate(() => history.length);
   await page.click('#tabLearn');await page.click('#tabData');
   expect(await page.evaluate(() => history.length)).toBe(length);
@@ -268,5 +268,5 @@ test('Navigation während des App-Starts bleibt nach dem Laden erhalten', async 
   await importCourse(page, course([entry('a')]));await holdRead(page, 'exams', true);
   await page.reload();await page.waitForFunction(() => window.heldRead.waiting);
   await page.click('#tabLearn');await releaseRead(page);
-  await expect(page.locator('#appStatus')).toContainText('Version 4.7.0 läuft');await assertView(page, 'learn');
+  await expect(page.locator('#appStatus')).toContainText('Version 4.8.12 läuft');await assertView(page, 'learn');
 });

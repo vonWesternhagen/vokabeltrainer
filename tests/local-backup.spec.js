@@ -25,14 +25,14 @@ async function editMeaning(page, value) {
 test('File export, IndexedDB backup, both restores and emergency reset remain local without GitHub dialogs', async ({ page, context }) => {
   await openApp(page); await importCourse(page, course([entry('local')], 'local-course', 'Lokaler Kurs'));
   await seedProgress(page, [{ id: 'local', attempts: 5, correct: 4 }]);
-  await page.click('#tabData'); await page.fill('#profileName', 'Testname'); await page.locator('#profileName').blur();
+  await page.click('#tabData'); await page.locator('#advancedBackup').evaluate(e=>e.open=true);await page.fill('#profileName', 'Testname'); await page.locator('#profileName').blur();
   await page.waitForLoadState('networkidle');
   const requests = [], dialogs = [];
   await context.route('**/*', route => { requests.push({ url: route.request().url(), method: route.request().method() }); return route.abort(); });
   page.on('dialog', dialog => dialogs.push(dialog.message()));
   const baseline = await snapshot(page);
   const download = page.waitForEvent('download');
-  await page.click('#saveCourseBackup');
+  await page.locator('#advancedBackup').evaluate(e=>e.open=true);await page.click('#saveCourseBackup');
   const file = await download, stream = await file.createReadStream(), chunks = [];
   for await (const chunk of stream) chunks.push(chunk);
   const backup = JSON.parse(Buffer.concat(chunks).toString('utf8'));

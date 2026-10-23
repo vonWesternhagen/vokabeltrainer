@@ -19,13 +19,13 @@ function entry(id, overrides = {}) {
 }
 async function openApp(page) {
   await page.goto('/');
-  await expect(page.locator('#appStatus')).toContainText('Version 4.7.0 läuft');
-  await expect(page).toHaveTitle('Vokabeltrainer – Version 4.7.0');
-  await expect(page.locator('.version')).toHaveText('v4.7.0');
+  await expect(page.locator('#appStatus')).toContainText('Version 4.8.12 läuft');
+  await expect(page).toHaveTitle('Vokabeltrainer – Version 4.8.12');
+  await expect(page.locator('.version')).toHaveText('v4.8.12');
 }
 async function importCourse(page, data) {
   await page.click('#tabData');
-  await page.locator('details').evaluate(el => el.open = true);
+  await page.locator('details').filter({has:page.locator('#vocabImportFile')}).evaluate(el => el.open = true);
   await page.locator('#vocabImportFile').setInputFiles({
     name: 'vocabulary.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(data)),
   });
@@ -115,7 +115,7 @@ async function exportBackup(page) {
       const [entries, progress, courses, exams, history] = await Promise.all(['vocab','progress','courses','exams','history'].map(getAll));
       let settings = {};try { settings = JSON.parse(localStorage.getItem('vokabeltrainer.settings.v4') || '{}'); } catch {}
       settings.activeCourse = localStorage.getItem('vokabeltrainer.activeCourse.v1') || settings.activeCourse || null;
-      return { backupType:'full-backup', appVersion:'4.7.0', schemaVersion:7, history,
+      return { backupType:'full-backup', appVersion:'4.8.12', schemaVersion:7, history,
         profileName:localStorage.getItem('vokabeltrainer.profile') || '', exportedAt:new Date().toISOString(),
         courses, entries, progress, exams, settings };
     } finally { db.close(); }

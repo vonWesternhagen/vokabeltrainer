@@ -649,3 +649,48 @@ body.trainer-mode .page-head,body.trainer-mode #appStatus{display:none}
 #snapshotList>div{padding:1rem 0;border-bottom:1px solid #ddd;overflow-wrap:anywhere}
 #snapshotList button{margin:.3rem;min-height:44px}
 .simple-overview .overview-hit{min-height:44px;text-align:left}
+
+/* 4.8: compact header and four touch-friendly data tiles. */
+body{padding-top:12px}
+.page-head{padding:12px 18px;border-radius:16px;align-items:center;gap:12px}
+.page-head h1{font-size:clamp(24px,3vw,30px);line-height:1.15;margin:0}
+.page-head .sub{font-size:.86rem;margin-top:4px}
+.header-note{display:none}
+.header-badges{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:6px;max-width:45%;align-self:center}
+.course-badge,.version{padding:4px 8px;font-size:.78rem;overflow-wrap:anywhere}
+.status{margin:6px 0 2px;padding:4px 9px;font-size:.78rem}
+.tabs{gap:5px;padding:5px 0;margin-bottom:10px}
+.tab{min-height:44px;padding:7px 10px;font-size:.87rem}
+.home-hero{padding:16px 20px;gap:16px;margin-bottom:12px;grid-template-columns:1.1fr 1fr}
+.home-hero h2{font-size:1.6rem}
+.home-hero p{font-size:.9rem}
+.home-stat{padding:9px}
+.home-grid .primary-action{grid-column:1/-1;min-height:88px}
+.data-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;align-items:start}
+.data-grid[hidden]{display:none}
+.data-tile{min-width:0;margin:0;padding:20px;border-top:4px solid var(--blue)}
+.data-tile h2{font-size:1.3rem;margin-bottom:14px}
+.data-tile h3{font-size:1rem;margin:16px 0 8px}
+.data-tile .plan-box{padding:12px;margin:14px 0}
+.data-tile input,.data-tile select,.data-tile button,.data-tile .fileButton{max-width:100%}
+.data-tile button,.data-tile .fileButton{white-space:normal;overflow-wrap:anywhere;min-height:44px}
+.data-tile .fileButton{display:inline-flex;align-items:center}
+.data-tile details{margin-top:16px}
+.data-tile summary{cursor:pointer;min-height:44px;padding:10px 0;font-weight:700}
+#dataRestore{border-top-color:var(--green)}
+#dataReset{border:2px solid #ba3540;border-top-width:4px;background:#fff5f5}
+#dataReset h2{color:#8a2f37}
+@media(max-width:650px){
+ .page-head{flex-direction:row;padding:12px}
+ .header-badges{max-width:43%}
+ .page-head .sub{display:none}
+ .home-hero{grid-template-columns:1fr}
+}
+@media(max-width:580px){
+ .data-grid{grid-template-columns:1fr}
+ .data-tile{padding:16px}
+}
+
+/* Automatic course backups: two primary tools, destructive action below. */
+#dataReset { grid-column: 1 / -1; }
+#pairCode { min-height:44px; max-width:100%; box-sizing:border-box; }

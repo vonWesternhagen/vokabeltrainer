@@ -1,4 +1,4 @@
-# Vokabeltrainer 4.7.0: Entwicklung und Tests
+# Vokabeltrainer 4.8.12: Entwicklung und Tests
 
 Die Anwendung bleibt eine statische Browser-App ohne Build-Schritt oder
 Produktionsabhängigkeiten. Node.js und Playwright werden nur zum Testen benötigt.
@@ -127,17 +127,17 @@ Tabwechseln keine History-Einträge. Browser-Zurück verlässt deshalb das aktue
 Dokument; intern dienen Tabs und „Beenden“ zur Navigation. Es wird kein Router
 und keine neue persistierte Zustandsstruktur eingeführt.
 
-## Versionierung ab 4.7.0
+## Versionierung ab 4.8.12
 
 Jede Änderung erhält eine neue Versionsnummer; kleine Änderungen erhöhen die Patch-Version.
 Dies gilt für Programm, Verhalten, UI, Tests, technische Implementierung und
-Release-Artefakte (z. B. 4.5.7 → 4.5.8 → 4.7.0). App-/Paketversion, sichtbare
+Release-Artefakte (z. B. 4.5.7 → 4.5.8 → 4.8.12). App-/Paketversion, sichtbare
 Versionsanzeigen, Asset-URLs, Service-Worker-Cache, Testerwartungen und aktuelle
 Dokumentation werden gemeinsam aktualisiert. Daten- und Schemaversionen sind
 davon unabhängig und werden nicht allein wegen eines Releases geändert.
 
 
-## Erweiterung 4.7.0
+## Erweiterung 4.8.12
 
 `data-core.js` enthält browserunabhängige Varianten-, Import- und Backupoperationen.
 Die bisherige Primärform `foreign` und die Liste `meanings` bleiben erhalten;
@@ -185,7 +185,7 @@ Ein verzögertes Lesen der Snapshot-Liste darf die laufende Profileingabe nicht
 überschreiben; der anschließende Kursexport wird in demselben Szenario geprüft.
 
 
-## Lokale Sicherungen 4.7.0
+## Lokale Sicherungen 4.8.12
 
 Die Suche im gesamten versionierten PWA-Code fand keine GitHub-Backup-API,
 Upload-Funktion oder GitHub-Bestätigungsdialoge. GitHub Pages liefert nur die App.
@@ -200,7 +200,7 @@ Browser- oder Betriebssystemdialoge können die Herkunft einer heruntergeladenen
 Datei nennen; diese werden nicht von der PWA gesteuert.
 
 
-## Optionale Online-Sicherung 4.7.0 / Worker 0.2.1
+## Optionale Online-Sicherung 4.8.12 / Worker 0.2.1
 
 IndexedDB bleibt Version 3. Kurssicherung bleibt Schema 1 (zusätzliche optionale
 Backup-ID und Art); Gesamtsicherungen bleiben Schema 7. Die Upload-Warteschlange
@@ -246,7 +246,7 @@ Abschluss 22.10.2026: 23 Unit-Tests, 124 verschiedene relevante Browserfälle
 (Chromium/WebKit jeweils Desktop, Touch Hoch-/Querformat), 191 Worker-Tests und
 15 PowerShell-Prüfungen bestanden. Von den Browserfällen bestanden 118 direkt;
 der sechsmal ausgeführte neue Restore-Roundtrip wartete zunächst auf eine alte
-Erfolgsmeldung. In 4.7.0 wartet ausschließlich dieser Test nun auf den tatsächlich
+Erfolgsmeldung. In 4.6.2 wartet ausschließlich dieser Test nun auf den tatsächlich
 wiederhergestellten Datenbestand. Alle sechs Varianten und vier Cache-/Offlinefälle
 bestanden anschließend (10/10). Keine Änderung der Restore-Implementierung nötig.
 Syntax, Versionskonsistenz, statische Produktionsdateien und Wrangler-Dry-Run grün.
@@ -256,6 +256,56 @@ Die direkte öffentliche HTTP-Prüfung ist durch die Netzwerkfreigaben dieser
 Codex-Umgebung eingeschränkt; Cloudflare-Metadaten und Pages-Workflow werden geprüft.
 
 
-## Sicherungsoberfläche 4.7.0
+## Automatische Kurssicherungen 4.8.12
 
-Die Datensicherungsseite besteht aus drei Karten: Einlesen, Sichern und dem abgesetzten Bereich Alles zurücksetzen. „Neuen Kurs einlesen“ heißt „Neuen Kurs einrichten“. „Diesen Kurs sichern“ zeigt den aktiven Kurs und erzeugt eine normale Kurssicherung lokal sowie – bei eingerichteter Online-Sicherung – zusätzlich für R2/NAS. „Alle Kurse sichern“ erzeugt pro vorhandenem Kurs eine eigene Kurssicherung; es wird kein neues Gesamtbackup erzeugt. Alte Gesamtsicherungen bleiben wiederherstellbar. Die NAS-Zuordnung bleibt deshalb unverändert kursbezogen.
+Datensicherung: Einlesen und Sicherung wiederherstellen nebeneinander, darunter
+Alles zurücksetzen über beide Spalten. Unter 581 CSS-Pixeln einspaltig. Manueller
+Kurs-/Mehrkursexport bleibt im geschlossenen Bereich Erweiterte Funktionen.
+Eine Lernen-Kachel, sichtbare Bezeichnung Lernstand, kompakter Header. Screenshots
+und Geometrieprüfungen in Desktop, iPad Hoch- und Querformat (Chromium/WebKit).
+
+Automatische vollständige Kurssicherung nach Start/Wiederöffnung bei verändertem
+Inhalt, nach persistierter Lernrunde (auch bewusst beendet), Import, Vokabel- und
+Klassenarbeitsänderung, Restore. Keine Kopie pro Antwort. Der normalisierte Hash
+enthält Metadaten, Vokabeln, Lernstände, History und Klassenarbeiten, aber keine
+Backup-ID, Exportzeit, App-Version, Backup-Art oder flüchtigen UI-Zustände. Es wird
+mit dem letzten Zustand verglichen: A → B → Restore A erzeugt eine neue Sicherung A.
+Queue-Schreibvorgänge werden serialisiert; Netzwerkupload läuft getrennt. Kopien
+werden auch vor dem Pairing lokal vorgemerkt und nach Einrichtung übertragen.
+Uploads werden bei Verbindung, Appstart und im Minutentakt wiederholt.
+
+Aufbewahrung entlang der Kette:
+- IndexedDB: Pending UND hochgeladene Kurskopien bleiben erhalten. Upload bestätigt
+  nur R2, nicht NAS; ohne NAS-Beleg darf der Client sie nicht automatisch löschen.
+- Worker 0.2.2/R2: neueste 100 NAS-bestätigte automatische Kopien je Profil/Kurs.
+  Nicht bestätigte Kopien zählen nicht gegen diese Grenze und bleiben unbegrenzt.
+  Manuelle Kopien bleiben außerhalb dieser Retention. ACK prüft weiterhin SHA/Größe.
+- Lokale Sicherheitskopien vor Import/Restore und Notfallbackup nutzen unverändert
+  ihre separate bisherige Aufbewahrung; keine Vermischung mit R2-Retention.
+- Windows-Sync unverändert: Größe/SHA prüfen, temporär schreiben, final prüfen,
+  erst danach ACK. Keine NAS-Löschlogik; NAS-Historie kann größer als 100 werden.
+
+IndexedDB bleibt Version 3, Kursschema 1 und altes Gesamtschema bleiben kompatibel.
+Keine destruktive Migration, keine Seeds. Alte Gesamtbackups 4.5.9/4.6.2/4.7.0/4.8.2
+werden restauriert und anschließend kursweise gesichert. Interne Gesamtsnapshots
+bleiben als Sicherheitsnetz; Dateiexport erzeugt einzelne Kursdateien. WebKit-
+Mehrfachdownloads werden zeitlich getrennt. Einzelkurs-Restore erhält andere Kurse.
+Reset erhält Queue/Pairing/Notfallsicherung und erzeugt keine leere Cloudkopie.
+
+Neue Tests: automatic-backup.spec.js (Auslöser, Deduplizierung, Historie, Reset,
+lokaler Pending-Schutz), data-layout.spec.js (drei Karten, Header, Touch, Legacy-
+Restore), online-backup.spec.js (Offline/Retry, unveränderte Bytes/SHA, echte Worker-
+Handler mit privatem Test-R2 und tatsächlicher PowerShell-Sync auf temporäres Ziel).
+Worker-Tests prüfen insbesondere 100/101, zwei Kurse, Pending- und Manual-Schutz.
+Der Heim-NAS-Zugriff wird nicht erneut ausgeführt; lokale Sync-Roundtrips prüfen
+das unveränderte Dateiformat. Es wird keine Windows-Aufgabe eingerichtet.
+
+4.8.12 korrigiert ausschließlich das Timing des Offline-Regressionstests: Vor
+dem Reload wird die erwartete 503-Antwort des Wiederverbindungsversuchs abgewartet.
+Dadurch bricht der Test keinen eigenen laufenden Fetch ab. Der Fehlerwächter
+für unbehandelte JavaScript-/IndexedDB-Fehler bleibt uneingeschränkt aktiv.
+Der vollständige Browserlauf umfasst 352 Fälle. Ergebnisse werden im Playwright-
+Bericht und im Abschlussbericht festgehalten; keine Dokumentänderung nach dem Lauf.
+
+Der ältere Offline-Queue-Test wartet zusätzlich vor dem Reload auf den Status
+`uploaded` des konkreten manuellen Backups statt auf den Status früherer Uploads.

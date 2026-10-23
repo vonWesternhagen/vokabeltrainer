@@ -7,8 +7,8 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Vokabeltrainer">
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="stylesheet" href="styles.css?v=4.7.0">
-  <title>Vokabeltrainer – Version 4.7.0</title>
+  <link rel="stylesheet" href="styles.css?v=4.8.12">
+  <title>Vokabeltrainer – Version 4.8.12</title>
 </head>
 <body>
 <main>
@@ -18,7 +18,7 @@
       <p class="sub">Schritt für Schritt sicherer werden · mit deinem eigenen Lerntempo</p>
       <p class="header-note">Wähle deinen Lernweg, übe gezielt und sieh sofort, was schon sicher sitzt.</p>
     </div>
-    <div class="header-badges"><span class="course-badge" id="activeCourseBadge">Noch kein Kurs</span><span class="version">v4.7.0</span></div>
+    <div class="header-badges"><span class="course-badge" id="activeCourseBadge">Noch kein Kurs</span><span class="version">v4.8.12</span></div>
   </header>
 
   <div id="appStatus" class="status">JavaScript startet …</div>
@@ -27,7 +27,7 @@
     <button id="tabHome" class="tab active" type="button">Übersicht</button>
     <button id="tabLearn" class="tab" type="button">Lernen</button>
     <button id="tabPlan" class="tab" type="button">Klassenarbeit</button>
-    <button id="tabOverview" class="tab" type="button">Vokabelübersicht</button>
+    <button id="tabOverview" class="tab" type="button">Lernstand</button>
     <button id="tabVocab" class="tab" type="button">Vokabeln bearbeiten</button>
     <button id="tabData" class="tab" type="button">Datensicherung</button>
   </nav>
@@ -56,10 +56,6 @@
         <span class="home-icon">✎</span><strong>Lernen</strong>
         <span>Stoff auswählen und eine neue Lernrunde starten</span>
       </button>
-      <button id="homeDueLearn" class="home-action" type="button">
-        <span class="home-icon">↻</span><strong>Lernen</strong>
-        <span>Neue oder schlecht gekonnte Vokabeln auswählen</span>
-      </button>
       <button id="homePlan" class="home-action" type="button">
         <span class="home-icon">□</span><strong>Klassenarbeit</strong>
         <span id="homeExamText">Klassenarbeit planen</span>
@@ -69,7 +65,7 @@
         <span>Suchen, korrigieren, verschieben oder ergänzen</span>
       </button>
       <button id="homeOverview" class="home-action" type="button">
-        <span class="home-icon">◎</span><strong>Vokabelübersicht</strong>
+        <span class="home-icon">◎</span><strong>Lernstand</strong>
         <span>Auf einen Blick sehen, was schon sicher sitzt</span>
       </button>
       <button id="homeData" class="home-action" type="button">
@@ -214,7 +210,7 @@
     <section class="card">
       <div class="overview-head">
         <div>
-          <div class="breadcrumb">Dein Fortschritt</div><h2>Was sitzt schon sicher?</h2>
+          <div class="breadcrumb">Dein Fortschritt</div><h2>Lernstand</h2>
           <p class="small">Je grüner der Balken, desto sicherer sitzt die Vokabel. Noch nicht geübte Vokabeln sind grau.</p>
         </div>
         <button id="refreshOverview" type="button" class="secondary">Aktualisieren</button>
@@ -262,8 +258,8 @@
 
   </section>
 
-  <section id="dataView" hidden>
-    <section class="card">
+  <section id="dataView" class="data-grid" hidden>
+    <section class="card data-tile" id="dataImport">
       <div class="breadcrumb">Datensicherung</div>
       <h2>Einlesen</h2>
 
@@ -309,7 +305,7 @@
       <div id="vocabImportResult" class="small" aria-live="polite"></div>
 
       <details>
-        <summary>Weitere Import- und Exportfunktionen</summary>
+        <summary>Erweiterte Funktionen</summary>
         <div class="buttons">
           <label class="fileButton" for="vocabImportFile">Vokabel-JSON auswählen</label>
           <input id="vocabImportFile" type="file" accept=".json,application/json">
@@ -318,40 +314,13 @@
       </details>
     </section>
 
-    <section class="card">
-      <h2>Sichern</h2>
-      <label>Vorname
-        <input id="profileName" type="text" autocomplete="given-name">
-      </label>
-
-      <div class="plan-box">
-        <h3>Diesen Kurs sichern</h3>
-        <p class="small">Aktueller Kurs: <strong id="backupActiveCourseName">Noch kein Kurs</strong></p>
-        <button id="saveCourseBackup" type="button">Diesen Kurs sichern</button>
-        <p class="small">Der Kurs wird als eigene JSON-Datei auf diesem Gerät gespeichert. Ist die Online-Sicherung eingerichtet, wird dieselbe Kurssicherung zusätzlich für R2 und die spätere NAS-Übertragung vorgemerkt.</p>
-      </div>
-
-      <div class="plan-box">
-        <h3>Alle Kurse sichern</h3>
-        <p class="small">Jeder vorhandene Kurs wird einzeln und vollständig gesichert. Auf dem NAS bleibt jeder Kurs in seinem eigenen Kursverzeichnis.</p>
-        <button id="saveAllCourses" type="button">Alle Kurse sichern</button>
-      </div>
-
-      <div id="backupResult" class="small"></div>
-
-      <h3>Sicherung wiederherstellen</h3>
+    <section class="card data-tile" id="dataRestore">
+      <h2>Sicherung wiederherstellen</h2>
       <p class="small">Eine Kurssicherung stellt nur den enthaltenen Kurs wieder her. Bereits vorhandene andere Kurse bleiben erhalten. Ältere vollständige Backups werden weiterhin unterstützt.</p>
       <div class="buttons">
-        <label class="fileButton danger-label" for="backupRestoreFile">Sicherung wiederherstellen</label>
+        <label class="fileButton" for="backupRestoreFile">Sicherung wiederherstellen</label>
         <input id="backupRestoreFile" type="file" accept=".json,application/json">
       </div>
-
-      <details>
-        <summary>Lokale Sicherungen auf diesem Gerät</summary>
-        <button id="createLocalBackup" type="button">Lokales Backup erstellen</button>
-        <p class="small">Interne Sicherungen bleiben in dieser PWA auf diesem Gerät. Automatische Sicherungen vor Import, Wiederherstellung, Kursersetzung, Reset und Migration werden ebenfalls hier gespeichert.</p>
-        <div id="snapshotList"></div>
-      </details>
 
       <details open>
         <summary>Online-Sicherung</summary>
@@ -360,13 +329,44 @@
           <label>Einmalcode <input id="pairCode" type="password" autocomplete="off" spellcheck="false"></label>
           <button id="pairDevice" type="button">Online-Sicherung einrichten</button>
         </div>
-        <p class="small">Bei fehlendem Internet bleiben vorgemerkte Sicherungen auf dem Gerät und werden später übertragen. Der Heim-PC übernimmt sie bei Anmeldung und danach regelmäßig vom R2-Speicher auf das NAS.</p>
+        <p class="small">Bei fehlendem Internet bleiben vorgemerkte Sicherungen auf dem Gerät und werden später übertragen. Der eingerichtete Windows-Synchronisierer übernimmt sie später auf das NAS.</p>
       </details>
+      <div id="backupResult" class="small" role="status"></div>
+      <details id="advancedBackup">
+        <summary>Erweiterte Funktionen</summary>
+      <label>Vorname
+        <input id="profileName" type="text" autocomplete="given-name">
+      </label>
+
+      <div class="plan-box">
+        <h3>Diesen Kurs sichern</h3>
+        <p class="small">Aktueller Kurs: <strong id="backupActiveCourseName">Noch kein Kurs</strong></p>
+        <button id="saveCourseBackup" type="button">Diesen Kurs sichern</button>
+        <p class="small">Der Kurs wird als eigene JSON-Datei auf diesem Gerät gespeichert. Ist die Online-Sicherung eingerichtet, wird dieselbe Kurssicherung zusätzlich online gesichert und später auf das NAS übertragen.</p>
+      </div>
+
+      <div class="plan-box">
+        <h3>Alle Kurse sichern</h3>
+        <p class="small">Jeder vorhandene Kurs wird einzeln vollständig gesichert.</p>
+        <button id="saveAllCourses" type="button">Alle Kurse sichern</button>
+      </div>
+
+
+
+      </details>
+
+      <details open>
+        <summary>Lokale Sicherungen auf diesem Gerät</summary>
+        <button id="createLocalBackup" type="button">Lokales Backup erstellen</button>
+        <p class="small">Interne Sicherungen bleiben in dieser PWA auf diesem Gerät. Automatische Sicherungen vor Import, Wiederherstellung, Kursersetzung, Reset und Migration werden ebenfalls hier gespeichert.</p>
+        <div id="snapshotList"></div>
+      </details>
+
     </section>
 
-    <section class="card danger-zone">
+    <section class="card data-tile danger-zone" id="dataReset">
       <h2>Alles zurücksetzen</h2>
-      <p class="small">Entfernt die lokalen Kurs- und Lerndaten dieses Geräts. Vorher wird eine interne Notfallsicherung angelegt.</p>
+      <p class="small">Entfernt die lokalen Kurs- und Lerndaten dieses Geräts. Vorher wird eine interne Notfallsicherung angelegt. Ausstehende Online-Sicherungen und die Geräte-Paarung bleiben erhalten.</p>
       <div class="buttons">
         <button type="button" id="reset" class="danger">Alles zurücksetzen</button>
       </div>
@@ -410,8 +410,8 @@
     </div>
 
 </main>
-<script src="data-core.js?v=4.7.0"></script>
-<script src="online-backup.js?v=4.7.0"></script>
-<script src="app.js?v=4.7.0"></script>
+<script src="data-core.js?v=4.8.12"></script>
+<script src="online-backup.js?v=4.8.12"></script>
+<script src="app.js?v=4.8.12"></script>
 </body>
 </html>

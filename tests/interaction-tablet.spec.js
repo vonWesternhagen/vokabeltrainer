@@ -23,7 +23,7 @@ test('Touch: Kacheln, Tabs und schnelle Ansichtswechsel bleiben bedienbar', asyn
   });
   await tap(page, '#tabHome');
   expect(await page.evaluate(() => window.observedTouch)).toEqual({ trusted: true, points: 1 });
-  for (const [id, name] of [['homeLearn', 'learn'], ['homeDueLearn', 'learn'], ['homePlan', 'plan'], ['homeVocab', 'vocab'], ['homeOverview', 'overview'], ['homeData', 'data']]) {
+  for (const [id, name] of [['homeLearn', 'learn'], ['homePlan', 'plan'], ['homeVocab', 'vocab'], ['homeOverview', 'overview'], ['homeData', 'data']]) {
     await tap(page, '#tabHome');await tap(page, `#${id}`);await assertView(page, name);
     await tap(page, '#tabLearn');await tap(page, '#tabHome');await tap(page, '#homeLearn');await tap(page, '#tabPlan');
     await assertView(page, 'plan');
