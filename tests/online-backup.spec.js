@@ -71,7 +71,9 @@ test('R2 failure preserves local backup and learning, retry confirms same immuta
  const pending=(await rows(page)).find(x=>x.online&&x.data.backupKind==='manual');expect(pending.status).toBe('pendingUpload');expect(await snapshot(page)).toEqual(before);
  await page.reload();await page.click('#tabData');expect((await rows(page)).find(x=>x.online&&x.data.backupKind==='manual').status).toBe('pendingUpload');
  h.env.VOKABELTRAINER_BACKUPS.fail=null;await page.clock.fastForward(61000);await page.evaluate(()=>window.dispatchEvent(new Event('online')));await expect(page.locator('#onlineStatus')).toContainText('Zuletzt online gesichert:');
- const saved=(await rows(page)).find(x=>x.online&&x.data.backupKind==='manual');expect(saved.serialized).toBe(pending.serialized);expect(saved.status).toBe('uploaded');expect(saved.retryCount).toBe(2);
+ // An older uploaded backup already satisfies the status label; wait for this exact backup.
+ await expect.poll(async()=>(await rows(page)).find(x=>x.id===pending.id)?.status).toBe('uploaded');
+ const saved=(await rows(page)).find(x=>x.id===pending.id);expect(saved.serialized).toBe(pending.serialized);expect(saved.status).toBe('uploaded');expect(saved.retryCount).toBe(2);
 });
 test('pending online copies survive reset and automatic snapshot retention',async({page,context})=>{
  const h=await setup(page);await seed(page);await h.pair();await context.setOffline(true);await saveCurrentCourse(page);await expect.poll(async()=>(await rows(page)).filter(x=>x.online&&x.data.backupKind==='manual').length).toBe(1);

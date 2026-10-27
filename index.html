@@ -7,8 +7,8 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Vokabeltrainer">
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="stylesheet" href="styles.css?v=4.8.16">
-  <title>Vokabeltrainer – Version 4.8.16</title>
+  <link rel="stylesheet" href="styles.css?v=5.0.0">
+  <title>Vokabeltrainer – Version 5.0.0</title>
 </head>
 <body>
 <main>
@@ -18,7 +18,7 @@
       <p class="sub">Schritt für Schritt sicherer werden · mit deinem eigenen Lerntempo</p>
       <p class="header-note">Wähle deinen Lernweg, übe gezielt und sieh sofort, was schon sicher sitzt.</p>
     </div>
-    <div class="header-badges"><span class="course-badge" id="activeCourseBadge">Noch kein Kurs</span><span class="version">v4.8.16</span></div>
+    <div class="header-badges"><span class="course-badge" id="activeCourseBadge">Noch kein Kurs</span><span class="version">v5.0.0</span></div>
   </header>
 
   <div id="appStatus" class="status">JavaScript startet …</div>
@@ -230,7 +230,7 @@
       </div>
       <div class="table-wrap">
         <table class="simple-overview">
-          <thead><tr><th>Französisch</th><th>Deutsch</th><th>Lernerfolg</th></tr></thead>
+          <thead><tr><th id="foreignHeading">Französisch</th><th>Deutsch</th><th>Lernerfolg</th></tr></thead>
           <tbody id="overviewBody"></tbody>
         </table>
       </div>
@@ -242,7 +242,7 @@
       <div class="overview-head">
         <div>
           <div class="breadcrumb">Wortschatz</div><h2>Vokabeln bearbeiten</h2>
-          <p class="small">Suche auf Deutsch oder Französisch. Tippe anschließend auf einen Treffer.</p>
+          <p class="small" id="vocabSearchHint">Suche auf Deutsch oder Französisch. Tippe anschließend auf einen Treffer.</p>
         </div>
       </div>
 
@@ -368,7 +368,7 @@
         <input id="editId" type="hidden">
 
         <div class="form-grid editor-grid">
-          <label>Französisch
+          <label><span id="editForeignLabel">Französisch</span>
             <input id="editForeign" type="text" placeholder="Mehrere Varianten mit ; trennen">
           </label>
 
@@ -396,8 +396,8 @@
     </div>
 
 </main>
-<script src="data-core.js?v=4.8.16"></script>
-<script src="online-backup.js?v=4.8.16"></script>
-<script src="app.js?v=4.8.16"></script>
+<script src="data-core.js?v=5.0.0"></script>
+<script src="online-backup.js?v=5.0.0"></script>
+<script src="app.js?v=5.0.0"></script>
 </body>
 </html>

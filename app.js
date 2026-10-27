@@ -1,7 +1,7 @@
 (function(){
 "use strict";
 
-var APP_VERSION="4.8.16";
+var APP_VERSION="5.0.0";
 var DB_NAME="VokabeltrainerTest";
 var DB_VERSION=3;
 var S_HISTORY="history",S_SNAPSHOTS="snapshots",historyWork=Promise.resolve();
@@ -111,6 +111,18 @@ function courseName(id){
  var c=courses.find(function(x){return x.id===id});
  return c?(c.label||c.name||c.id):(id||"Noch kein Kurs")
 }
+function learningLocale(cid){var c=courses.find(function(x){return x.id===(cid||activeCourseId())});return c&&c.learningLocale||"fr-FR"}
+function isEnglish(cid){return /^en(?:-|$)/i.test(learningLocale(cid))}
+function foreignLanguage(cid){return isEnglish(cid)?"Englisch":"Französisch"}
+function updateLanguageLabels(){
+ var language=foreignLanguage();
+ $("directionSelect").querySelector('[value="DE_FR"]').textContent="Deutsch → "+language;
+ $("directionSelect").querySelector('[value="FR_DE"]').textContent=language+" → Deutsch";
+ $("overviewSort").querySelector('[value="french"]').textContent=language+" A–Z";
+ $("foreignHeading").textContent=language;$("editForeignLabel").textContent=language;
+ $("vocabSearchHint").textContent="Suche auf Deutsch oder "+language+". Tippe anschließend auf einen Treffer.";
+ $("editForeign").lang=learningLocale();
+}
 function chooseInitialActiveCourse(){
  var used=usedCourseIds(),saved=null;
  try{saved=localStorage.getItem(ACTIVE_COURSE_KEY)}catch(e){}
@@ -183,7 +195,7 @@ function stripGermanArticle(s){
 }
 function germanAccepted(item,g){
  var lg=looseNorm(g),lgn=looseNorm(stripGermanArticle(g));
- return item.meanings.some(function(m){
+ return item.meanings.flatMap(D.germanVariants).some(function(m){
   return lg===looseNorm(m)||lgn===looseNorm(stripGermanArticle(m))
  })
 }
@@ -210,7 +222,7 @@ function nearEnough(a,b){
 }
 function germanNear(item,g){
  var candidates=[];
- item.meanings.forEach(function(m){
+ item.meanings.flatMap(D.germanVariants).forEach(function(m){
   candidates.push(m);candidates.push(stripGermanArticle(m))
  });
  var inputs=[g,stripGermanArticle(g)];
@@ -219,6 +231,7 @@ function germanNear(item,g){
 function escapeHtml(s){return String(s).replace(/[&<>"']/g,function(m){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]})}
 
 function isModule(unit){return /^module-([a-z]|[1-6])$/.test(unit)}
+function isSectionless(unit){return isModule(unit)||unit==="irregular-verbs"}
 function unitGroup(value){
  var unitId=typeof value==="object"&&value?value.unitId:value;
  unitId=String(unitId||"");
@@ -236,10 +249,13 @@ function partGroup(value){
  if(/volet-1/.test(unitId))return"volet-1";
  if(/volet-2/.test(unitId))return"volet-2";
  if(/volet-3/.test(unitId))return"volet-3";
- if(/^module-/.test(unitId))return"alle";
+ if(isSectionless(unitId))return"alle";
  return"sonstiges"
 }
-function unitLabel(x){
+function unitLabel(x,cid){
+ cid=cid||activeCourseId();
+ if(x==="irregular-verbs")return"Unregelmäßige Verben";
+ if(/^unit-\d+$/.test(x)){var c=courses.find(function(c){return c.id===cid}),u=(c&&c.units||[]).find(function(u){return u.id===x}),v=vocab.filter(function(v){return v.courseId===cid}).flatMap(function(v){return[v].concat(v.locations||[])}).find(function(v){return v.unitId===x&&v.unitName});return u&&(u.label||u.name)||v&&v.unitName||"Unit "+x.slice(5)}
  if(x==="alle")return"Alle Vokabeln";
  var um=String(x||"").match(/^unite-(\d+)$/);
  if(um)return"Unité "+um[1];
@@ -248,7 +264,7 @@ function unitLabel(x){
  return x
 }
 function partLabel(x){
- return({"alle":"Alle Teilbereiche","auftakt":"Auftakt","vocabulaire-thematique":"Vocabulaire thématique","volet-1":"Volet 1","volet-2":"Volet 2","volet-3":"Volet 3","sonstiges":"Sonstiges"})[x]||x
+ return({"alle":"Alle Teilbereiche","auftakt":"Auftakt","vocabulaire-thematique":"Vocabulaire thématique","volet-1":"Volet 1","volet-2":"Volet 2","volet-3":"Volet 3","part-a":"Part A","part-b":"Part B","part-c":"Part C","story":"Story","sonstiges":"Sonstiges"})[x]||x
 }
 
 function fillSelect(sel,items,allLabel){
@@ -261,7 +277,7 @@ function fillSelect(sel,items,allLabel){
 function unitsForCourse(courseId){
  return Array.from(new Set(vocab.filter(function(v){return courseId==="alle"||v.courseId===courseId}).flatMap(function(v){return [v].concat(v.locations||[]).map(unitGroup)})))
   .sort(function(a,b){
-   var au=String(a).match(/^unite-(\d+)$/),bu=String(b).match(/^unite-(\d+)$/);
+   var au=String(a).match(/^(?:unite|unit)-(\d+)$/),bu=String(b).match(/^(?:unite|unit)-(\d+)$/);
    if(au&&bu)return Number(au[1])-Number(bu[1]);
    if(au)return-1;if(bu)return 1;
    var am=String(a).match(/^module-([a-z]|[1-6])$/),bm=String(b).match(/^module-([a-z]|[1-6])$/);
@@ -272,17 +288,17 @@ function unitsForCourse(courseId){
 }
 function populateUnit(sel,courseId,includeAll){
  var units=unitsForCourse(courseId);
- fillSelect(sel,units.map(function(x){return{value:x,label:unitLabel(x)}}),includeAll?"Alle Vokabeln":null);
+ fillSelect(sel,units.map(function(x){return{value:x,label:unitLabel(x,courseId)}}),includeAll?"Alle Vokabeln":null);
  if(sel&&!sel.options.length){
   var empty=document.createElement("option");empty.value="";empty.textContent="Keine Bereiche vorhanden";sel.appendChild(empty)
  }
 }
 function partsFor(courseId,unit){
- if(isModule(unit)||unit==="unite-0")return unit==="unite-0"?["auftakt"]:[];
+ if(isSectionless(unit)||unit==="unite-0")return unit==="unite-0"?["auftakt"]:[];
  return Array.from(new Set(vocab.filter(function(v){
   return(courseId==="alle"||v.courseId===courseId)
  }).flatMap(function(v){return [v].concat(v.locations||[]).filter(function(x){return unit==="alle"||unitGroup(x)===unit}).map(partGroup)}))).filter(function(x){return x!=="alle"}).sort(function(a,b){
-  var order={"auftakt":1,"vocabulaire-thematique":2,"volet-1":3,"volet-2":4,"volet-3":5,"sonstiges":9};
+  var order={"auftakt":1,"vocabulaire-thematique":2,"volet-1":3,"volet-2":4,"volet-3":5,"part-a":2,"part-b":3,"part-c":4,"story":5,"sonstiges":9};
   return(order[a]||99)-(order[b]||99)||a.localeCompare(b)
  })
 }
@@ -293,8 +309,8 @@ function populatePart(sel,courseId,unit,includeAll){
  if(unit==="unite-0"){
   sel.innerHTML="";var intro=document.createElement("option");intro.value="auftakt";intro.textContent="Auftakt";sel.appendChild(intro);sel.disabled=true;return
  }
- if(isModule(unit)){
-  sel.innerHTML="";var mod=document.createElement("option");mod.value="alle";mod.textContent="gesamtes Modul";sel.appendChild(mod);sel.disabled=true;return
+ if(isSectionless(unit)){
+  sel.innerHTML="";var mod=document.createElement("option");mod.value="alle";mod.textContent=unit==="irregular-verbs"?"Alle Formen":"gesamtes Modul";sel.appendChild(mod);sel.disabled=true;return
  }
  var parts=partsFor(courseId,unit);
  fillSelect(sel,parts.map(function(x){return{value:x,label:partLabel(x)}}),includeAll?"Alle Teilbereiche":null);
@@ -492,6 +508,7 @@ async function startCustomSession(pool,label){
 }
 
 function chooseDirection(){
+ if(session.current&&session.current.unitId==="irregular-verbs")return"DE_FR";
  var d=$("directionSelect").value;
  return d==="MIXED"?(Math.random()<.5?"DE_FR":"FR_DE"):d
 }
@@ -533,10 +550,10 @@ async function renderCurrent(){
  clearTimeout(correctDetectTimer);
  $("check").textContent="Prüfen";
  $("prompt").textContent=fr?v.meanings.join(" / "):D.french(v).join(" / ");
- $("directionLabel").textContent=fr?"Deutsch → Französisch":"Französisch → Deutsch";
- $("answer").lang=fr?"fr-FR":"de-DE";
- $("answer").setAttribute("lang",fr?"fr-FR":"de-DE");
- document.documentElement.lang=fr?"fr":"de";
+ $("directionLabel").textContent=fr?"Deutsch → "+foreignLanguage(v.courseId):foreignLanguage(v.courseId)+" → Deutsch";
+ $("answer").lang=fr?learningLocale(v.courseId):"de-DE";
+ $("answer").setAttribute("lang",fr?learningLocale(v.courseId):"de-DE");
+ document.documentElement.lang=fr?learningLocale(v.courseId).split("-")[0]:"de";
  $("answer").value="";
  $("feedback").className="feedback compact-feedback";
  $("feedback").textContent="";
@@ -556,6 +573,13 @@ function nextDue(level){
  var days=[0,1,2,4,7,14][Math.max(0,Math.min(5,level))],d=new Date();d.setDate(d.getDate()+days);return d.toISOString()
 }
 function evaluateAnswer(v,d,g){
+ if(d==="DE_FR"&&isEnglish(v.courseId)){
+  var kind=D.englishCompare(v,g);
+  if(kind==="correct")return{kind:kind,reason:"",canOverride:false};
+  if(kind==="almost")return{kind:kind,reason:"Nur der Artikel unterscheidet sich.",canOverride:true};
+  if(v.unitId!=="irregular-verbs"&&D.french(v).flatMap(D.englishVariants).some(function(x){return nearEnough(g,x)}))return{kind:"almost",reason:"Nur eine kleine Schreibabweichung.",canOverride:true};
+  return{kind:"wrong",reason:"",canOverride:false};
+ }
  if(d==="DE_FR"){
   // Satzzeichen, Leerzeichen und Akzente werden komplett ignoriert.
   if(D.french(v).some(function(x){return looseNorm(g)===looseNorm(x)}))return{kind:"correct",reason:"",canOverride:false};
@@ -723,6 +747,7 @@ function populateCourseSelector(){
  if(old&&used.indexOf(old)>=0)sel.value=old;else{setActiveCourse(used[0]);sel.value=used[0]}
 }
 function updateCourseLabels(){
+ updateLanguageLabels();
  var cid=activeCourseId(),name=courseName(cid);$("activeCourseBadge").textContent=name;$("homeCourseLabel").textContent=name;
  $("exportCourse").textContent=cid?name+" als Vokabeldatei exportieren":"Aktiven Kurs als Vokabeldatei exportieren";
  var backupName=$("backupActiveCourseName"),saveOne=$("saveCourseBackup"),saveAll=$("saveAllCourses");
@@ -746,7 +771,7 @@ async function renderHome(){
   var days=Math.max(0,Math.ceil((new Date(e.date+"T12:00:00")-new Date())/86400000));
   $("homeExamText").textContent="Klassenarbeit in "+days+" Tag"+(days===1?"":"en")+" · Lernpensum planen"
  }else $("homeExamText").textContent="Klassenarbeit planen";
- $("appStatus").textContent="✓ Version 4.8.16 läuft · "+(cid?courseName(cid)+" · "+all.length+" Vokabeln":"noch keine Vokabeln importiert")
+ $("appStatus").textContent="✓ Version 5.0.0 läuft · "+(cid?courseName(cid)+" · "+all.length+" Vokabeln":"noch keine Vokabeln importiert")
 }
 async function switchActiveCourse(id){
  viewRevision++;cancelSession();setActiveCourse(id);
@@ -770,7 +795,7 @@ async function renderOverview(){
  var mode=$("overviewSort").value;
  if(mode==="weakest")rows.sort(function(a,b){return(a.pct===null?-1:a.pct)-(b.pct===null?-1:b.pct)});
  else if(mode==="strongest")rows.sort(function(a,b){return(b.pct===null?-1:b.pct)-(a.pct===null?-1:a.pct)});
- else if(mode==="french")rows.sort(function(a,b){return a.v.foreign.localeCompare(b.v.foreign,"fr")});
+ else if(mode==="french")rows.sort(function(a,b){return a.v.foreign.localeCompare(b.v.foreign,learningLocale())});
  else if(mode==="german")rows.sort(function(a,b){return a.v.meanings.join(" / ").localeCompare(b.v.meanings.join(" / "),"de")});
  rows.forEach(function(r){
   var tr=document.createElement("tr"),fr=document.createElement("td"),de=document.createElement("td"),success=document.createElement("td");
@@ -786,7 +811,7 @@ async function renderOverview(){
 
 async function renderVocab(){
  var q=norm($("vocabSearch").value),box=$("vocabList");box.innerHTML="";
- if(!q){$("vocabSearchInfo").textContent="Tippe Buchstaben ein. Gesucht wird gleichzeitig in Französisch und Deutsch.";return}
+ if(!q){$("vocabSearchInfo").textContent="Tippe Buchstaben ein. Gesucht wird gleichzeitig in "+foreignLanguage()+" und Deutsch.";return}
  var matches=vocab.filter(function(v){return v.courseId===activeCourseId()&&norm(D.french(v).join(" ")+" "+v.meanings.join(" ")).includes(q)})
   .sort(function(a,b){
    var af=norm(a.foreign),bf=norm(b.foreign),am=norm(a.meanings.join(" ")),bm=norm(b.meanings.join(" "));
@@ -807,12 +832,12 @@ async function renderVocab(){
 function unitIdFromSelection(unit,part){return unit}
 function populateEditParts(){
  var unit=$("editUnit").value;populatePart($("editPart"),activeCourseId(),unit,false);
- if(isModule(unit))$("editPartLabel").hidden=true;
+ if(isSectionless(unit))$("editPartLabel").hidden=true;
  else{$("editPartLabel").hidden=false;if(!$("editPart").value&&$("editPart").options.length)$("editPart").selectedIndex=0}
  updateEditLocation()
 }
 function updateEditLocation(){
- var unit=$("editUnit").value,part=isModule(unit)?"gesamtes Modul":partLabel($("editPart").value);
+ var unit=$("editUnit").value,part=isSectionless(unit)?(unit==="irregular-verbs"?"Alle Formen":"gesamtes Modul"):partLabel($("editPart").value);
  $("editLocation").textContent="Ablage: "+unitLabel(unit)+" · "+part
 }
 function newVocab(){
@@ -825,19 +850,19 @@ function editVocab(id){
  var v=vocab.find(function(x){return x.id===id});if(!v)return;
  $("editTitle").textContent="Vokabel bearbeiten";$("editId").value=v.id;$("editForeign").value=D.french(v).join("; ");$("editMeanings").value=v.meanings.join("; ");
  populateUnit($("editUnit"),activeCourseId(),false);var ug=unitGroup(v);$("editUnit").value=ug;populateEditParts();
- if(!isModule(ug)){var pg=partGroup(v);if([].slice.call($("editPart").options).some(function(o){return o.value===pg}))$("editPart").value=pg}
+ if(!isSectionless(ug)){var pg=partGroup(v);if([].slice.call($("editPart").options).some(function(o){return o.value===pg}))$("editPart").value=pg}
  updateEditLocation();$("deleteVocab").hidden=false;$("editModal").hidden=false;$("editForeign").focus()
 }
 function closeEditModal(){$("editModal").hidden=true}
 async function saveEdit(){
  var id=$("editId").value,foreign=$("editForeign").value.trim(),meanings=$("editMeanings").value.split(";").map(function(x){return x.trim()}).filter(Boolean);
- if(!foreign||!meanings.length){alert("Bitte sowohl Französisch als auch mindestens eine deutsche Bedeutung eintragen.");return}
+ if(!foreign||!meanings.length){alert("Bitte sowohl "+foreignLanguage()+" als auch mindestens eine deutsche Bedeutung eintragen.");return}
  var existing=id?vocab.find(function(x){return x.id===id}):null;
  var v=existing?D.clone(existing):{id:"manual-"+Date.now()+"-"+Math.random().toString(36).slice(2,7),courseId:activeCourseId(),userCreated:true};
  var fr=D.unique(foreign.split(/[;\n]/).map(function(x){return x.trim()}).filter(Boolean));v.foreign=fr[0];if(fr.length>1||v.foreignVariants)v.foreignVariants=fr;v.meanings=D.unique(meanings);v.courseId=activeCourseId();
  var selectedUnit=$("editUnit").value;
  v.unitId=selectedUnit;
- v.part=isModule(selectedUnit)?"alle":(selectedUnit==="unite-0"?"auftakt":$("editPart").value||"sonstiges");
+ v.part=isSectionless(selectedUnit)?"alle":(selectedUnit==="unite-0"?"auftakt":$("editPart").value||"sonstiges");
  v.userEdited=true;v.userEditedAt=new Date().toISOString();
  await reqP(os(S_VOCAB,"readwrite").put(v));await reload();populateAllSelectors();closeEditModal();await renderVocab();await renderOverview();await captureCourses([v.courseId])
 }
@@ -852,7 +877,7 @@ async function deleteVocab(){
 function scopeCatalog(){
  var out=[],units=unitsForCourse(activeCourseId());
  units.forEach(function(u){
-  if(isModule(u))out.push({key:u+"|alle",unit:u,part:"alle",label:unitLabel(u)});
+  if(isSectionless(u))out.push({key:u+"|alle",unit:u,part:"alle",label:unitLabel(u)});
   else partsFor(activeCourseId(),u).forEach(function(p){out.push({key:u+"|"+p,unit:u,part:p,label:unitLabel(u)+" · "+partLabel(p)})})
  });
  return out
@@ -1179,17 +1204,18 @@ function normalizeImportData(data,mode){
   var v=D.normalize(e),original=String(e.unitId||e.unit||""),unit=original,part=e.part||null,section=e.sectionName||e.unitName||unitNames.get(original)||null;
   if(cid==="franzoesisch-6"&&(/^p17[678]-/.test(original)||(Number(e.page)>=176&&Number(e.page)<=178))){unit="unite-0";part="auftakt";section=section||original;}
   var old=unit.match(/^(unite-\d+)-(auftakt|vocabulaire-thematique|volet-1|volet-2|volet-3)$/);if(old){unit=old[1];part=part||old[2];}
-  if(!/^unite-\d+$/.test(unit)&&!isModule(unit))throw Error();
-  if(isModule(unit))part="alle";if(unit==="unite-0")part="auftakt";
+  if(!/^(?:unite|unit)-\d+$/.test(unit)&&!isSectionless(unit))throw Error();
+  if(isSectionless(unit))part="alle";if(unit==="unite-0")part="auftakt";
   part=part||"sonstiges";
   var identity=e.importIdentity||(e.id?JSON.stringify([cid,"source",String(e.id)]):JSON.stringify([cid,unit,part,norm(v.foreign).normalize("NFC"),Array.from(new Set(v.meanings.map(function(x){return norm(x).normalize("NFC")}))).sort()]));
+  if(/^en(?:-|$)/i.test(meta.learningLocale||existing&&existing.learningLocale||"")&&(e.id||e.importIdentity)){v.sourceCardId=String(e.sourceCardId||e.id||e.importIdentity);}
   var match=identityIndex.get(identity);
   var id=match?match.id:(e.id&&!seen.has(String(e.id))?String(e.id):"import:"+identity);
   if(!match&&seen.has(id)){id="import-"+crypto.randomUUID();}seen.add(id);
   normalized.push(Object.assign(v,{id:id,importIdentity:identity,courseId:cid,unitId:unit,part:part,sectionName:section,importedAt:e.importedAt||new Date().toISOString()}));
  }catch(err){invalid++;}});
  if(invalid)throw Error(invalid+" ungültige Einträge. Bitte die Datei korrigieren; es wurde nichts übernommen.");
- return {course:Object.assign({},meta,{id:cid,name:meta.name||label,label:label,learningLocale:meta.learningLocale||"fr-FR",nativeLocale:meta.nativeLocale||"de-DE"}),entries:normalized,source:data,mode:mode};
+ return {course:Object.assign({},meta,{id:cid,name:meta.name||label,label:label,learningLocale:meta.learningLocale||existing&&existing.learningLocale||"fr-FR",nativeLocale:meta.nativeLocale||existing&&existing.nativeLocale||"de-DE"}),entries:normalized,source:data,mode:mode};
 }
 async function importVocabularyFile(file,mode){
  var data=await parseJsonFile(file),prepared=normalizeImportData(data,mode||"source");
@@ -1208,7 +1234,7 @@ async function renderImportPreview(){
   var field=document.createElement("fieldset"),legend=document.createElement("legend");legend.textContent="Konflikt "+(i+1);field.appendChild(legend);field.dataset.group=i;
   var info=document.createElement("p");info.textContent="Vorhanden: "+g.existing.map(function(v){return D.french(v).join(" / ")+" = "+D.german(v).join(" / ")}).join("; ")+" · Datei: "+g.incoming.map(function(v){return D.french(v).join(" / ")+" = "+D.german(v).join(" / ")}).join("; ");field.appendChild(info);
   var select=document.createElement("select");select.className="review-mode";select.setAttribute("aria-label","Entscheidung Konflikt "+(i+1));[["merge","Varianten zusammenführen"],["separate","Als getrennte Vokabeln behalten"],["skip","Konflikt überspringen"]].forEach(function(pair){var o=document.createElement("option");o.value=pair[0];o.textContent=pair[1];select.appendChild(o)});field.appendChild(select);
-  ["fr","de"].forEach(function(lang){var label=document.createElement("label");label.textContent=lang==='fr'?"Französische Varianten (eine pro Zeile)":"Deutsche Varianten (eine pro Zeile)";var area=document.createElement("textarea");area.className="review-"+lang;var values=D.unique(g.existing.concat(g.incoming).flatMap(lang==='fr'?D.french:D.german));area.value=values.join("\n");label.appendChild(area);field.appendChild(label);
+  ["fr","de"].forEach(function(lang){var label=document.createElement("label");label.textContent=lang==='fr'?( /^en(?:-|$)/i.test(pendingImport.course.learningLocale)?"Englische Varianten (eine pro Zeile)":"Französische Varianten (eine pro Zeile)"):"Deutsche Varianten (eine pro Zeile)";var area=document.createElement("textarea");area.className="review-"+lang;var values=D.unique(g.existing.concat(g.incoming).flatMap(lang==='fr'?D.french:D.german));area.value=values.join("\n");label.appendChild(area);field.appendChild(label);
    values.forEach(function(value){var l=document.createElement("label"),cb=document.createElement("input");cb.type="checkbox";cb.checked=true;cb.onchange=function(){var lines=area.value.split("\n");area.value=(cb.checked?D.unique(lines.concat(value)):lines.filter(function(x){return x!==value})).join("\n")};l.append(cb,document.createTextNode(value));field.appendChild(l)});
   });box.appendChild(field);
  });

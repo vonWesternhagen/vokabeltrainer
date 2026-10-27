@@ -33,7 +33,7 @@ module.exports = defineConfig({
       ['landscape', { width: 1080, height: 810 }],
     ].map(([orientation, viewport]) => ({
       name: `${browserName}-ipad-${orientation}`,
-      testMatch: ['**/tablet.spec.js', '**/interaction-tablet.spec.js', '**/data-safety.spec.js', '**/online-backup.spec.js', '**/data-layout.spec.js', '**/automatic-backup.spec.js', '**/course-management.spec.js'],
+      testMatch: ['**/tablet.spec.js', '**/interaction-tablet.spec.js', '**/data-safety.spec.js', '**/online-backup.spec.js', '**/data-layout.spec.js', '**/automatic-backup.spec.js', '**/course-management.spec.js', '**/english.spec.js'],
       use: { browserName, launchOptions: launchOptions(browserName), viewport, deviceScaleFactor: 2, isMobile: true, hasTouch: true },
     })),
   ]),

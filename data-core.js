@@ -7,7 +7,7 @@ function variants(value){return (Array.isArray(value)?value:[value]).filter(x=>t
 function unique(values){const seen=new Set();return values.filter(x=>{const k=key(x);if(seen.has(k))return false;seen.add(k);return true;});}
 function french(v){return unique(variants(v.foreignVariants?.length?v.foreignVariants:v.foreign||v.fr));}
 function german(v){return unique(variants(v.meanings||v.de||v.meaning));}
-function normalize(v){const out=clone(v),fr=french(v),de=german(v);if(!fr.length||!de.length)throw Error('Französisch oder Deutsch fehlt.');out.foreign=fr[0];out.meanings=de;if(fr.length>1||v.foreignVariants)out.foreignVariants=fr;return out;}
+function normalize(v){const out=clone(v),fr=french(v),de=german(v);if(!fr.length||!de.length)throw Error('Fremdsprachliche oder deutsche Bedeutung fehlt.');out.foreign=fr[0];out.meanings=de;if(fr.length>1||v.foreignVariants)out.foreignVariants=fr;return out;}
 function percentage(p){if(!p?.attempts)return null;return Math.max(0,Math.min(100,Math.round(((p.correct||0)+0.5*(p.almost||0))/p.attempts*100)));}
 function summary(entries,progress,history=[],exams=[]){
  const m=new Map(progress.map(p=>[p.id,p]));const out={total:entries.length,new:0,weak:0,middle:0,good:0,sessions:history.length,totalLearningMs:null,lastLearned:null,exams:exams.length};
@@ -26,7 +26,7 @@ function mergeProgress(records,id){
 function groups(existing,incoming){
  const rows=[...existing.map(v=>({v,old:true})),...incoming.map(v=>({v,old:false}))],parents=rows.map((_,i)=>i),idx=new Map();
  function find(i){while(parents[i]!==i){parents[i]=parents[parents[i]];i=parents[i];}return i;}
- rows.forEach(({v},i)=>{for(const token of [...french(v).map(x=>'fr:'+key(x)),...german(v).map(x=>'de:'+key(x)),...(v.importIdentity?['src:'+v.importIdentity]:[])]){if(idx.has(token))parents[find(i)]=find(idx.get(token));else idx.set(token,i);}});
+ rows.forEach(({v},i)=>{for(const token of [...(v.sourceCardId?[]:[...french(v).map(x=>'fr:'+key(x)),...german(v).map(x=>'de:'+key(x))]),...(v.importIdentity?['src:'+v.importIdentity]:v.sourceCardId?['src:'+v.courseId+':'+v.sourceCardId]:[])]){if(idx.has(token))parents[find(i)]=find(idx.get(token));else idx.set(token,i);}});
  const out=new Map();rows.forEach((r,i)=>{const k=find(i);if(!out.has(k))out.set(k,[]);out.get(k).push(r);});
  return [...out.values()].filter(g=>g.some(r=>!r.old)).map(g=>({existing:g.filter(r=>r.old).map(r=>r.v),incoming:g.filter(r=>!r.old).map(r=>r.v)}));
 }
@@ -48,10 +48,11 @@ function planImport(existing,incoming,progress,strategy='smart',decisions={}){
   const targetFr=decision.fr?unique(variants(decision.fr)):fr,targetDe=decision.de?unique(variants(decision.de)):de;
   if(!targetFr.length||!targetDe.length)throw Error('Mindestens eine Variante pro Sprache behalten.');
   const unchanged=g.existing.length===1&&JSON.stringify(french(g.existing[0]))===JSON.stringify(targetFr)&&JSON.stringify(german(g.existing[0]))===JSON.stringify(targetDe);
-  if(unchanged){counts.identical+=incoming.length;return;}
   survivor.foreign=targetFr[0];if(targetFr.length>1||survivor.foreignVariants)survivor.foreignVariants=targetFr;survivor.meanings=targetDe;
-  const locations=new Map();all.forEach(v=>[v,...(v.locations||[])].forEach(x=>locations.set(JSON.stringify([x.unitId,x.part]),{unitId:x.unitId,part:x.part})));
-  if(locations.size>1)survivor.locations=[...locations.values()];
+  const locations=new Map();all.forEach(v=>[v,...(v.locations||[])].forEach(x=>{const location={};for(const k of ['unitId','part','page','unitName','sectionName'])if(x[k]!=null)location[k]=x[k];locations.set(JSON.stringify([x.unitId,x.part,x.page]),location);}));
+  const sameLocations=g.existing.length===1&&incoming.every(v=>JSON.stringify([v.unitId,v.part,v.page,v.locations||[]])===JSON.stringify([g.existing[0].unitId,g.existing[0].part,g.existing[0].page,g.existing[0].locations||[]]));
+  if(all.length>1&&locations.size>1&&!sameLocations)survivor.locations=[...locations.values()];
+  if(unchanged&&JSON.stringify(g.existing[0].locations||[])===JSON.stringify(survivor.locations||[])){counts.identical+=incoming.length;return;}
   if(g.existing.length>1){survivor.mergedSources=all.filter(v=>v!==g.existing[0]).map(clone);const records=g.existing.map(v=>ps.get(v.id)).filter(Boolean);g.existing.forEach(v=>{output.delete(v.id);ps.delete(v.id);aliases[v.id]=survivor.id;});const p=mergeProgress(records,survivor.id);if(p)ps.set(survivor.id,p);}
   if(g.existing.length){output.set(survivor.id,survivor);counts.expanded++;}else fresh(survivor);
  });
@@ -64,6 +65,20 @@ function buildCourseBackup(state,cid,appVersion,profileName=''){
  return {backupType:'course-backup',schemaVersion:1,backupId:crypto.randomUUID(),backupKind:'manual',appVersion,exportedAt:new Date().toISOString(),profileName,course:clone(course),entries:clone(entries),progress:clone(progress),exams:clone(exams),history:clone(history),summary:summary(entries,progress,history,exams)};
 }
 function filename(course,profile,date=new Date().toISOString().slice(0,10)){return [course,profile,date].filter(Boolean).join('_').replace(/[\\/<>:"|?*\x00-\x1f]/g,'').replace(/\.{2,}/g,'.').slice(0,180)+'.json';}
-const api={clone,key,variants,unique,french,german,normalize,percentage,summary,mergeProgress,groups,planImport,buildCourseBackup,filename};
+function englishVariants(value){
+ const full=String(value||'');const core=full.replace(/\(([^()]*)\)/g,(all,inside)=>/\b(?:sb|sth)\b/i.test(inside)?'':all).trim();
+ return unique([full,core,...[full,core].filter(x=>/^to\s+/i.test(x)).map(x=>x.replace(/^to\s+/i,''))]);
+}
+function formTokens(value){return key(value).replace(/[–—−,\/\-]/g,' ').replace(/\s+/g,' ').trim();}
+function englishCompare(v,input){
+ const plain=x=>key(x).normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/g,'');
+ if(v.unitId==='irregular-verbs')return french(v).some(x=>formTokens(x)===formTokens(input))?'correct':'wrong';
+ const candidates=french(v).flatMap(englishVariants);
+ if(candidates.some(x=>plain(x)===plain(input)))return 'correct';
+ const article=x=>String(x).trim().replace(/^(a|an|the)\s+/i,'');
+ return candidates.some(x=>plain(article(x))===plain(article(input)))?'almost':'wrong';
+}
+function germanVariants(value){const full=String(value||'');return unique([full,full.replace(/\([^()]*\)/g,' ').replace(/\s+/g,' ').trim()]);}
+const api={englishVariants,englishCompare,formTokens,germanVariants,clone,key,variants,unique,french,german,normalize,percentage,summary,mergeProgress,groups,planImport,buildCourseBackup,filename};
 if(typeof module==='object'&&module.exports)module.exports=api;else root.DataCore=api;
 })(globalThis);
