@@ -1,7 +1,7 @@
 (function(){
 "use strict";
 
-var APP_VERSION="5.0.0";
+var APP_VERSION="5.0.1";
 var DB_NAME="VokabeltrainerTest";
 var DB_VERSION=3;
 var S_HISTORY="history",S_SNAPSHOTS="snapshots",historyWork=Promise.resolve();
@@ -771,7 +771,7 @@ async function renderHome(){
   var days=Math.max(0,Math.ceil((new Date(e.date+"T12:00:00")-new Date())/86400000));
   $("homeExamText").textContent="Klassenarbeit in "+days+" Tag"+(days===1?"":"en")+" · Lernpensum planen"
  }else $("homeExamText").textContent="Klassenarbeit planen";
- $("appStatus").textContent="✓ Version 5.0.0 läuft · "+(cid?courseName(cid)+" · "+all.length+" Vokabeln":"noch keine Vokabeln importiert")
+ $("appStatus").textContent="✓ Version 5.0.1 läuft · "+(cid?courseName(cid)+" · "+all.length+" Vokabeln":"noch keine Vokabeln importiert")
 }
 async function switchActiveCourse(id){
  viewRevision++;cancelSession();setActiveCourse(id);

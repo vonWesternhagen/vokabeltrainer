@@ -1,4 +1,4 @@
-Vokabeltrainer 5.0.0
+Vokabeltrainer 5.0.1
 
 Statische PWA mit lokalem Datenbestand und optionaler Online-Sicherung. index.html über einen HTTP(S)-Server öffnen.
 Kein Bundler und keine Produktionsabhängigkeiten erforderlich.
@@ -22,7 +22,7 @@ Einrichtung, echter NAS-Einzeltest und Grenzen: sync/README.md.
 Keine Aufgabenplanung vor bestätigtem NAS-Test. GitHub liefert nur die PWA.
 
 Tests, Datenregeln und Grenzen: TESTING.md.
-Nach Veröffentlichung bei Bedarf mit ?v=5.0.0 öffnen.
+Nach Veröffentlichung bei Bedarf mit ?v=5.0.1 öffnen.
 
 Leere Kursdatensätze werden nicht automatisch gesichert. Einzelkurslöschung bleibt gerätelokal.
 Nur eigene noch nicht hochgeladene Queue-Einträge des gelöschten Kurses werden verworfen.

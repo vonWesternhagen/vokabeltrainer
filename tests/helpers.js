@@ -19,9 +19,9 @@ function entry(id, overrides = {}) {
 }
 async function openApp(page) {
   await page.goto('/');
-  await expect(page.locator('#appStatus')).toContainText('Version 5.0.0 läuft');
-  await expect(page).toHaveTitle('Vokabeltrainer – Version 5.0.0');
-  await expect(page.locator('.version')).toHaveText('v5.0.0');
+  await expect(page.locator('#appStatus')).toContainText('Version 5.0.1 läuft');
+  await expect(page).toHaveTitle('Vokabeltrainer – Version 5.0.1');
+  await expect(page.locator('.version')).toHaveText('v5.0.1');
 }
 async function importCourse(page, data) {
   await page.click('#tabData');
@@ -115,7 +115,7 @@ async function exportBackup(page) {
       const [entries, progress, courses, exams, history] = await Promise.all(['vocab','progress','courses','exams','history'].map(getAll));
       let settings = {};try { settings = JSON.parse(localStorage.getItem('vokabeltrainer.settings.v4') || '{}'); } catch {}
       settings.activeCourse = localStorage.getItem('vokabeltrainer.activeCourse.v1') || settings.activeCourse || null;
-      return { backupType:'full-backup', appVersion:'5.0.0', schemaVersion:7, history,
+      return { backupType:'full-backup', appVersion:'5.0.1', schemaVersion:7, history,
         profileName:localStorage.getItem('vokabeltrainer.profile') || '', exportedAt:new Date().toISOString(),
         courses, entries, progress, exams, settings };
     } finally { db.close(); }
@@ -126,7 +126,7 @@ module.exports = { test, expect, fixture79, course, entry, openApp, importCourse
 // Legacy backup fixtures keep restore/format coverage after manual UI removal.
 async function courseBackupFixture(page,cid){
  const state=await exportBackup(page);cid=cid||state.settings.activeCourse||state.courses[0].id;
- return require('../data-core').buildCourseBackup(state,cid,'5.0.0',state.profileName||'');
+ return require('../data-core').buildCourseBackup(state,cid,'5.0.1',state.profileName||'');
 }
 async function localSnapshotFixture(page){
  const data=await exportBackup(page);
@@ -136,7 +136,7 @@ async function localSnapshotFixture(page){
 }
 async function legacyQueuedBackup(page){
  const state=await exportBackup(page);
- await page.evaluate(async state=>{const db=await new Promise(r=>{const q=indexedDB.open('VokabeltrainerTest');q.onsuccess=()=>r(q.result)});const c=OnlineBackup.create({db,build:DataCore.buildCourseBackup,readState:async()=>state,version:'5.0.0'});await c.capture(state,'manual',[state.settings.activeCourse]);await c.flush();db.close()},state);
+ await page.evaluate(async state=>{const db=await new Promise(r=>{const q=indexedDB.open('VokabeltrainerTest');q.onsuccess=()=>r(q.result)});const c=OnlineBackup.create({db,build:DataCore.buildCourseBackup,readState:async()=>state,version:'5.0.1'});await c.capture(state,'manual',[state.settings.activeCourse]);await c.flush();db.close()},state);
 }
 module.exports.courseBackupFixture=courseBackupFixture;
 module.exports.localSnapshotFixture=localSnapshotFixture;

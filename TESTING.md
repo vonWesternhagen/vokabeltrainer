@@ -1,4 +1,4 @@
-# Vokabeltrainer 5.0.0: Entwicklung und Tests
+# Vokabeltrainer 5.0.1: Entwicklung und Tests
 
 Die Anwendung bleibt eine statische Browser-App ohne Build-Schritt oder
 Produktionsabhängigkeiten. Node.js und Playwright werden nur zum Testen benötigt.

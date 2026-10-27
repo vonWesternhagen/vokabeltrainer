@@ -1,5 +1,5 @@
-const CACHE="vokabeltrainer-v5.0.0";
-const ASSETS=["./","./index.html","./styles.css?v=5.0.0","./app.js?v=5.0.0","./data-core.js?v=5.0.0","./online-backup.js?v=5.0.0","./manifest.webmanifest"];
+const CACHE="vokabeltrainer-v5.0.1";
+const ASSETS=["./","./index.html","./styles.css?v=5.0.1","./app.js?v=5.0.1","./data-core.js?v=5.0.1","./online-backup.js?v=5.0.1","./manifest.webmanifest"];
 self.addEventListener("install",event=>{
  event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS)).then(()=>self.skipWaiting()))
 });
